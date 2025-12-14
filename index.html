@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lumina Learning v2</title>
+    <title>Lumina Learning v3</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
@@ -51,29 +51,8 @@
                 </div>
             </div>
         </main>
-
-        <section id="quiz-view" class="view">
-            <div class="quiz-top-bar glass">
-                <button onclick="exitToHub()">✕</button>
-                <div class="timer" id="timer">00:00</div>
-                <div class="progress-bar-bg"><div id="progress-fill"></div></div>
-            </div>
-            <div id="quiz-content"></div>
-            <div class="quiz-footer">
-                <button class="icon-btn" onclick="clearSelection()">🧹</button>
-                <button class="icon-btn" onclick="skipQuestion()">Skip</button>
-                <button id="next-btn" class="main-action" disabled onclick="handleNext()">Next</button>
-            </div>
-        </section>
-
-        <div id="modal-overlay" class="modal hidden">
-            <div class="modal-content glass">
-                <h2 id="modal-title">Settings</h2>
-                <div id="modal-body"></div>
-                <button class="primary-btn" onclick="closeModal()">Start</button>
-            </div>
+        
         </div>
-    </div>
     <script src="app.js"></script>
 </body>
 </html>

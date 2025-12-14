@@ -63,3 +63,20 @@ body {
 
 .opt-btn.right { background: #34C759 !important; color: white; }
 .opt-btn.wrong { background: #FF3B30 !important; color: white; }
+
+.drop-zone {
+    border: 2px dashed var(--accent);
+    padding: 40px;
+    text-align: center;
+    border-radius: 20px;
+    margin: 20px 0;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+/* Fix for D01 residual issue - ensuring old inputs are not visible */
+.import-card input[type="file"]:not(#pdf-file) {
+    display: none;
+}
+
+/* ... rest of the styles ... */

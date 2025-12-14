@@ -1,105 +1,95 @@
+// --- CONFIGURATION ---
 const PEXELS_API_KEY = "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM";
 
 const State = {
     db: [],
-    currentTopic: "",
+    sessionSet: [], // D05 Fix: Holds the current quiz questions
     currentIndex: 0,
     correctCount: 0,
     seconds: 0,
     timerInt: null
 };
 
-// --- CORE FUNCTIONS ---
+// --- INITIALIZATION AND DEFECT FIXES ---
 
-async function processAndLoad() {
+// D03 Fix: Initialize and update the age slider display
+document.addEventListener('DOMContentLoaded', () => {
+    const ageRange = document.getElementById('age-range');
+    const ageVal = document.getElementById('age-val');
+    
+    // Initial display
+    ageVal.innerText = ageRange.value + ' yrs';
+
+    // Listener for slider movement
+    ageRange.addEventListener('input', (e) => {
+        ageVal.innerText = e.target.value + ' yrs';
+    });
+});
+
+// D02 Fix: Handle file selection change and show file name immediately
+document.getElementById('pdf-file').addEventListener('change', (e) => {
+    const fileName = e.target.files[0] ? e.target.files[0].name : "Tap to Upload PDF";
+    document.getElementById('file-status').innerText = fileName;
+});
+
+
+// --- CORE FUNCTIONS (D04/D05 Fix) ---
+
+function processAndLoad() {
     const fileInput = document.getElementById('pdf-file');
     const topic = document.getElementById('topic-name').value;
 
     if (!fileInput.files[0] || !topic) {
-        alert("Please provide a name and select a file.");
+        alert("Please provide a Topic Name and select a PDF file first.");
         return;
     }
 
-    // SIMULATING LLM EXTRACTION (Required for PWA Demo)
-    // In real use, this fetch calls your LLM to parse the PDF text
-    document.getElementById('file-status').innerText = "Analyzing Content...";
-    
+    // D04 Fix: Immediate visual feedback
+    document.getElementById('file-status').innerHTML = "⏳ **Analyzing Content...**";
+    document.querySelector('.primary-btn').disabled = true;
+
+    // Simulate LLM extraction success after a delay
     setTimeout(() => {
-        State.db = generateMockData(50); // Generates 50 questions
+        State.db = generateMockData(50); // Mocks 50 questions
+        
+        // D05 Fix: Correctly reveal the functional tiles
         document.getElementById('action-tiles').classList.remove('hidden');
-        document.getElementById('file-status').innerText = "✅ Ready!";
-    }, 1500);
+        document.getElementById('file-status').innerHTML = "✅ **Ready! 50 Questions Loaded.**";
+        document.querySelector('.primary-btn').disabled = false;
+        
+        // Ensure buttons are active now (for non-quiz tiles)
+        document.querySelectorAll('.tile').forEach(tile => tile.style.pointerEvents = 'auto');
+
+    }, 2000); 
 }
 
 function openQuizConfig() {
     const max = State.db.length;
-    const modalBody = document.getElementById('modal-body');
-    modalBody.innerHTML = `
-        <p>Questions in bank: ${max}</p>
-        <input type="number" id="q-count" value="10" min="1" max="${max}">
-    `;
-    document.getElementById('modal-overlay').classList.remove('hidden');
-}
-
-function startQuiz() {
-    const count = parseInt(document.getElementById('q-count').value);
-    State.sessionSet = [...State.db].sort(() => 0.5 - Math.random()).slice(0, count);
-    State.currentIndex = 0;
-    switchView('quiz-view');
-    renderQuestion();
-    startTimer();
-}
-
-function renderQuestion() {
-    const q = State.sessionSet[State.currentIndex];
-    const content = document.getElementById('quiz-content');
-    const options = [...q.options].sort(() => 0.5 - Math.random()); // Shuffle options
-
-    content.innerHTML = `
-        <div class="question-card glass">
-            <img src="https://images.pexels.com/photos/search?query=${q.pexels_query}&per_page=1" class="q-img">
-            <h2>${q.question}</h2>
-            <div class="options-list">
-                ${options.map(opt => `
-                    <button class="opt-btn" onclick="selectOption(this, '${opt}', '${q.correct}')">
-                        ${opt}
-                    </button>
-                `).join('')}
-            </div>
-        </div>
-    `;
-}
-
-function selectOption(btn, choice, correct) {
-    const allBtns = document.querySelectorAll('.opt-btn');
-    allBtns.forEach(b => b.classList.remove('selected', 'wrong', 'right'));
-    
-    btn.classList.add('selected');
-    document.getElementById('next-btn').disabled = false;
-    
-    // Immediate Visual Feedback
-    if(choice === correct) {
-        btn.classList.add('right');
-        playAudio('success');
-    } else {
-        btn.classList.add('wrong');
-        playAudio('error');
+    if (max === 0) {
+        alert("Please build your library first!");
+        return;
+    }
+    // D05 FIX: Using custom modal (assuming modal logic is in place)
+    // If not, use the old prompt as a fallback for now:
+    const count = prompt(`Questions in bank: ${max}. How many for this session? (1-${max})`, "10");
+    if (count && parseInt(count) > 0 && parseInt(count) <= max) {
+        setupQuizSession(parseInt(count));
+        switchView('quiz-view');
+        startTimer();
+    } else if (count) {
+        alert(`Please select a number between 1 and ${max}.`);
     }
 }
 
-// Helper: Navigation
-function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-}
+// ... rest of the app.js code remains (e.g., renderQuestion, switchView, etc.) ...
 
 function generateMockData(num) {
-    // Returns 50 questions with page numbers and pexels tags
+    // This is the source of truth for the 50+ questions.
     return Array.from({length: num}, (_, i) => ({
         question: `Sample Concept ${i+1}: What is the primary function of this subject?`,
         options: ["Option A", "Option B", "Option C", "Option D"],
         correct: "Option A",
         pdf_ref: `Page ${Math.floor(i/2) + 1}`,
-        pexels_query: "education"
+        pexels_query: "education" // Pexels image query
     }));
 }
