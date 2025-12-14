@@ -2,22 +2,30 @@
     --ios-bg: #F2F2F7;
     --accent: #5856D6;
     --glass: rgba(255, 255, 255, 0.7);
+    --primary: #6366f1;
 }
 
 body {
     background: linear-gradient(180deg, #A2AAFF 0%, #FFFFFF 100%);
     font-family: -apple-system, sans-serif;
     margin: 0;
-    overflow: hidden;
+    color: #333; /* Default text for contrast */
 }
+
+.view { display: none; padding: 20px; }
+.view.active { display: block; }
 
 .glass {
     background: var(--glass);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,0.4);
     border-radius: 20px;
+    padding: 20px;
 }
+
+.ios-header { text-align: center; margin-bottom: 20px; }
+.ios-header h1 { color: #5856D6; }
 
 .drop-zone {
     border: 2px dashed var(--accent);
@@ -27,56 +35,102 @@ body {
     margin: 20px 0;
     cursor: pointer;
     transition: 0.3s;
+    background: rgba(255, 255, 255, 0.1); /* Lighter background for visibility */
 }
 
+.drop-zone span { font-weight: bold; color: #5856D6; }
+.import-card { padding: 30px; }
+
+/* Action Tiles */
 .tiles-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 15px;
     padding: 20px;
 }
-
 .tile {
     padding: 30px 10px;
     text-align: center;
     border-radius: 25px;
     color: white;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.1s ease-in-out;
 }
-
+.tile:active { transform: scale(0.98); }
 .purple { background: #5856D6; }
 .orange { background: #FF9500; }
 .blue { background: #007AFF; }
-
 .hidden { display: none !important; }
 
-/* Quiz Styles */
-.opt-btn {
+/* Custom Modal Styles (FIXED) */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 18px;
-    margin: 10px 0;
-    border: none;
-    border-radius: 15px;
-    background: white;
-    font-size: 1.1rem;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.opt-btn.right { background: #34C759 !important; color: white; }
-.opt-btn.wrong { background: #FF3B30 !important; color: white; }
-
-.drop-zone {
-    border: 2px dashed var(--accent);
-    padding: 40px;
+.modal-content {
+    background: var(--glass);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 30px;
+    width: 90%;
+    max-width: 400px;
     text-align: center;
-    border-radius: 20px;
-    margin: 20px 0;
-    cursor: pointer;
-    transition: 0.3s;
+    position: relative;
+    border-radius: 25px;
+    color: white; 
 }
 
-/* Fix for D01 residual issue - ensuring old inputs are not visible */
-.import-card input[type="file"]:not(#pdf-file) {
+.modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.glass-input {
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    width: 100%;
+    margin-top: 10px;
+    box-sizing: border-box;
+}
+
+.primary-btn {
+    background: #FF9500;
+    color: white;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: transform 0.1s ease-in-out;
+}
+.primary-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+/* Quiz View Cleanup (Addressing visible remnants) */
+#quiz-view {
     display: none;
 }
-
-/* ... rest of the styles ... */
+#quiz-view.active {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
