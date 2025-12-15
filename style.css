@@ -1,3 +1,47 @@
+:root {
+    --primary-color: #8c8cff;
+    --secondary-color: #aff;
+    --background-dark: #0d0d1a;
+    --background-light: #1f1f3a;
+    --text-color: #e0e0f0;
+    --base-font-size: 16px; /* Base for font scaling */
+}
+
+/* Apply CSS variables */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, var(--background-light), var(--background-dark));
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    /* ... other styles remain ... */
+    font-size: var(--base-font-size);
+}
+
+/* V18.0: Dark Mode Toggle - Inverts some colors for a true "light" mode simulation */
+.dark-mode {
+    --background-dark: #fff;
+    --background-light: #f0f0f5;
+    --text-color: #1f1f3a;
+    --primary-color: #5a5ac0;
+    --secondary-color: #5a5ac0;
+}
+
+.dark-mode .tile.purple { background: linear-gradient(135deg, #bbb8ff, #8c8cff); }
+.dark-mode .tile.orange { background: linear-gradient(135deg, #ffc966, #ff9900); }
+.dark-mode .tile.blue { background: linear-gradient(135deg, #66d9ff, #00bfff); }
+
+.dark-mode .glass {
+    background: rgba(0, 0, 0, 0.05); /* Lighter shadow/glass effect */
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode input[type="text"], .dark-mode .glass-input {
+    background: rgba(255, 255, 255, 0.9);
+    color: #1f1f3a;
+    border: 1px solid #ccc;
+}
+/* ... (Ensure all color-dependent styles use var(--...) if possible) ... */
 /* --- Quiz Footer (V17.0: FIX: Overlap Resolution) --- */
 .quiz-footer {
     position: fixed;
