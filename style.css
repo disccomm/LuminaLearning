@@ -19,7 +19,7 @@ body.dark-mode {
     --border-color: #334155;
 }
 
-/* KEY FIX: This makes the Font Slider work */
+/* FIX: This ensures all text scales with the slider */
 html {
     font-size: var(--base-font-size); 
 }
@@ -31,14 +31,13 @@ body {
     margin: 0;
     padding: 0;
     transition: background-color 0.3s ease, color 0.3s ease;
-    /* Use rem for sizing so it scales with the slider */
     font-size: 1rem; 
 }
 
-/* Layout & Containers */
+/* FIX: This centers the app content on large screens (desktop view fix) */
 .container {
     max-width: 600px;
-    margin: 0 auto;
+    margin: 0 auto; /* Center the container */
     padding: 20px;
     min-height: 100vh;
     display: flex;
@@ -180,6 +179,7 @@ input[type=range] {
     margin-bottom: 20px;
     text-align: left;
 }
+/* Sign out button is now specifically the danger button */
 .danger-btn {
     background-color: #ef4444;
     color: white;
