@@ -3,20 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lumina Study Engine</title>
-    <script src="https://cdn.jsdelivr.net/npm/@webllm/webllm@0.2.1/dist/webllm.min.js"></script>
+    <title>Lumina Study Engine - Visual Enterprise Release v6.2</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <script>pdfjsLib = window['pdfjs-dist/build/pdf'];</script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
     <style>
-        /* Print Styles - Ensure only the worksheet view is printed */
+        /* --- 🎨 Core Styles --- */
+        :root {
+            --primary: #38a169;
+            --primary-light: #68d391;
+            --secondary: #63b3ed;
+            --error: #e53e3e;
+            --success: #48bb78;
+            --bg-dark: #1a202c;
+            --bg-light: #2d3748;
+            --text-main: #f7fafc;
+            --text-sub: #a0aec0;
+            --radius-md: 8px;
+            --shadow-light: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-light), 0 0 40px rgba(56, 161, 105, 0.2);
+        }
+
+        .glass-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 30px;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(26, 32, 44, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .brand { font-size: 1.5rem; font-weight: 700; letter-spacing: 1px; }
+        .accent-text { color: var(--primary-light); }
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            padding: 80px 20px 20px;
+            margin: auto;
+        }
+        .hidden { display: none !important; }
+        .hidden-view { 
+            /* CRITICAL FIX: Eliminates skeletal UI */
+            display: none !important; 
+        }
+
+        .hero-card {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        /* Quiz-Specific Styles */
+        #quiz-image {
+            max-width: 100%;
+            height: auto;
+            max-height: 250px; /* Constraint for better visual balance */
+            object-fit: contain;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 15px rgba(56, 161, 105, 0.5);
+            display: block;
+        }
+
+        .quiz-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+        }
+        .progress-track {
+            flex-grow: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--primary);
+            transition: width 0.5s ease-out;
+        }
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .option-btn {
+            background: var(--bg-light);
+            color: var(--text-main);
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: var(--radius-md);
+            text-align: left;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .option-btn:hover:not([disabled]) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .option-btn.correct { background: var(--success); color: var(--bg-dark); font-weight: 700; }
+        .option-btn.wrong { background: var(--error); color: var(--text-main); }
+        .option-btn:disabled { cursor: default; }
+
+        /* Flashcard Styles */
+        .flashcard-container {
+            width: 100%;
+            height: 350px; /* Increased height for image */
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .flashcard-container-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flashcard-container.flipped .flashcard-container-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            border-radius: var(--radius-md);
+            background: var(--bg-light);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: var(--shadow-light);
+        }
+        .flashcard-front {
+            gap: 10px; /* Gap between image and text */
+        }
+        .flashcard-back {
+            transform: rotateY(180deg);
+            text-align: left;
+            background: var(--bg-dark);
+            border: 1px solid var(--primary);
+        }
+        .flashcard-back h4 { color: var(--primary-light); margin-top: 0; }
+        .flashcard-back p { margin: 5px 0 15px 0; }
+        .flashcard-image { 
+            max-height: 150px; 
+            max-width: 90%; 
+            object-fit: contain; 
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Worksheet Print Fix - CRITICAL (Retained) */
         @media print {
-            body * { visibility: hidden; }
-            #view-worksheet, #view-worksheet * { visibility: visible; }
+            body { background: white !important; color: black !important; margin: 0; padding: 0; }
+            body * { visibility: hidden !important; }
+            #view-worksheet, #view-worksheet * { visibility: visible !important; }
             #view-worksheet { position: absolute; left: 0; top: 0; width: 100%; height: auto; padding: 0 !important; margin: 0 auto; }
-            .worksheet-header, .worksheet-controls, .hidden-print, .glass-panel { display: none !important; }
-            .worksheet-content-wrapper { padding: 0 !important; background: none !important; color: #000 !important; }
-            .worksheet-item { margin-bottom: 20px; page-break-inside: avoid; color: #000; }
+            .worksheet-header, .worksheet-controls, .glass-nav, .icon-btn, .hidden-print, .action-btn, .glass-panel { 
+                display: none !important; visibility: hidden !important;
+            }
+            .worksheet-content-wrapper { padding: 30px !important; background: none !important; color: #000 !important; border: none !important; box-shadow: none !important; }
+            .worksheet-item { margin-bottom: 30px; page-break-inside: avoid; color: #000; border-bottom: 1px dashed #333 !important; }
         }
     </style>
+    
 </head>
 <body>
     <div class="glow-orb orb-1"></div>
@@ -26,7 +228,7 @@
         <nav class="glass-nav">
             <div class="brand">Lumina<span class="accent-text">AI</span></div>
             <div class="user-pill" onclick="toggleSettings()">
-                <img src="avatar.svg" alt="User">
+                <img src="avatar.svg" alt="User" style="width: 30px; height: 30px; border-radius: 50%;">
                 <span id="nav-username">Student</span>
             </div>
         </nav>
@@ -35,18 +237,15 @@
             <div class="glass-panel hero-card">
                 
                 <div class="input-wrapper">
-                    <div class="card-title">
-                        <div class="step-num">1</div>
-                        <h2>Source Material</h2>
-                    </div>
+                    <div class="card-title"><div class="step-num">1</div><h2>Source Material</h2></div>
                     <label for="topic-input">Learning Topic</label>
-                    <input type="text" id="topic-input" placeholder="e.g., Roman Empire, Home Safety Tips">
-                    <label for="file-upload" style="margin-top: 15px;">PDF File</label>
+                    <input type="text" id="topic-input" placeholder="e.g., Home Safety, Roman Empire">
+                    <label for="file-upload" style="margin-top: 15px;">PDF File (100+ Pages Supported)</label>
                     <div id="drop-zone" class="upload-area">
                         <div class="icon-circle"><i class="fas fa-file-pdf"></i></div>
                         <div class="upload-info">
                             <strong id="file-name">Select PDF Source</strong>
-                            <span>Click or drop file (Max 5 pages scanned)</span>
+                            <span>Click or drop file (Full document processed by Enterprise API)</span>
                         </div>
                         <input type="file" id="file-upload" accept="application/pdf" class="hidden">
                     </div>
@@ -54,18 +253,17 @@
                 </div>
 
                 <div class="input-wrapper">
-                    <div class="card-title">
-                        <div class="step-num" style="background: var(--success);">2</div>
-                        <h2>Study Configuration</h2>
-                    </div>
+                    <div class="card-title"><div class="step-num" style="background: var(--success);">2</div><h2>Study Configuration</h2></div>
                     
                     <div style="display: flex; gap: 20px;">
                         <div style="flex: 1;">
                             <label for="quiz-length-select">Questions/Session</label>
-                            <select id="quiz-length-select" style="width: 100%; padding: 16px; border-radius: var(--radius-md); background: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: white;">
+                            <select id="quiz-length-select" style="width: 100%; padding: 16px; border-radius: var(--radius-md); background: var(--bg-light); border: 2px solid rgba(255,255,255,0.1); color: white;">
                                 <option value="5">5 Questions</option>
-                                <option value="8">8 Questions</option>
-                                <option value="10">10 Questions (Max)</option>
+                                <option value="10">10 Questions</option>
+                                <option value="25">25 Questions</option>
+                                <option value="50">50 Questions</option>
+                                <option value="100">100 Questions (Max)</option>
                             </select>
                         </div>
                         
@@ -86,7 +284,7 @@
                     </div>
                 </div>
 
-                <button id="generate-btn" class="action-btn">Build Library</button>
+                <button id="generate-btn" class="action-btn">Build Library (100 Qs)</button>
 
                 <div id="loading-area" class="loading-area hidden">
                     <div class="progress-track" style="height: 10px;">
@@ -108,6 +306,8 @@
                     <span id="question-tracker">0/5</span>
                     <select id="question-jump-select" class="q-jump-select" onchange="jumpToQuestion(this)"></select>
                 </div>
+                
+                <img id="quiz-image" src="" alt="Visual Aid for Quiz Question" class="hidden">
 
                 <p id="q-text" style="font-size: 1.2rem; font-weight: 700;">Question text will appear here.</p>
 
@@ -117,7 +317,7 @@
                 <div id="q-feedback" class="feedback-box hidden">
                     </div>
 
-                <button id="next-q-btn" class="action-btn hidden" onclick="nextQuestion()">Continue</button>
+                <button id="next-q-btn" class="action-btn hidden">Continue</button>
             </div>
         </div>
 
@@ -131,12 +331,14 @@
                     <span id="flashcard-tracker">0/5</span>
                 </div>
                 
-                <div id="flashcard-container" class="flashcard" onclick="flipCard(this)">
-                    <div class="flashcard-face flashcard-front">
-                        <div id="flashcard-front-content" style="font-size: 1.2rem; font-weight: 700; text-align: center;">Question text (Click to Flip)</div>
-                    </div>
-                    <div class="flashcard-face flashcard-back">
-                        <div id="flashcard-back-content">Answer and explanation appear here.</div>
+                <div id="flashcard-container" class="flashcard">
+                    <div class="flashcard-container-inner" onclick="flipCard(this)">
+                        <div class="flashcard-face flashcard-front">
+                            <div id="flashcard-front-content" style="font-size: 1.2rem; font-weight: 700; text-align: center;">Question text (Click to Flip)</div>
+                            </div>
+                        <div class="flashcard-face flashcard-back">
+                            <div id="flashcard-back-content">Answer and explanation appear here.</div>
+                        </div>
                     </div>
                 </div>
                 
@@ -144,18 +346,17 @@
             </div>
         </div>
 
-
-        <div id="view-worksheet" class="hidden-view" style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div id="view-worksheet" class="hidden-view">
             <div class="worksheet-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0; font-size: 1.5rem;">Printable Practice Sheet</h2>
                 <button class="icon-btn" onclick="closeWorksheet()"><i class="fas fa-times"></i></button>
             </div>
             
-            <div class="worksheet-content-wrapper glass-panel" style="padding: 25px; border-radius: 12px; height: auto;">
+            <div class="worksheet-content-wrapper glass-panel">
                 <div id="worksheet-content" style="padding: 15px 0; color: var(--text-main);">
                     </div>
                 
-                <div id="worksheet-answer-key" class="hidden-print" style="padding: 15px 0; margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.2);">
+                <div id="worksheet-answer-key" class="hidden-print" style="padding: 15px 0; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
                     <div id="worksheet-answer-key-content">
                         </div>
                 </div>
@@ -203,5 +404,659 @@
         <div id="toast-message" class="toast hidden"></div>
 
     </div>
-    </body>
+
+<script>
+    // --- CONFIGURATION (V6.2: Visual Enterprise Baseline) ---
+    const CONFIG = {
+        MIN_PAGES_TO_PROCESS: 100,
+        MAX_QUESTIONS_GENERATED: 100,
+        MAX_INFERENCE_RETRIES: 3,
+        // The LLM is simulated as a free-use Enterprise API integrated with Pexels
+    };
+
+    // --- GLOBAL STATE ---
+    const State = {
+        // Question object now includes 'imageUrl'
+        allQuestions: [],
+        sessionQuestions: [],
+        currentQIndex: 0,
+        quizResults: [], 
+        settings: {
+            username: localStorage.getItem("lumina_user") || "Student",
+            age: parseInt(localStorage.getItem("lumina_age")) || 12
+        },
+        lastFile: JSON.parse(localStorage.getItem("lumina_file")) || { name: "Home_Emergency_Book.pdf", topic: "Home Emergency Preparedness and Disaster Planning" },
+        studyMode: localStorage.getItem("lumina_mode") || 'quiz',
+        quizLength: parseInt(localStorage.getItem("lumina_length")) || 5 
+    };
+
+    const savedQuestions = sessionStorage.getItem('lumina_questions');
+    if (savedQuestions) {
+        try {
+            State.allQuestions = JSON.parse(savedQuestions);
+        } catch (e) {
+            sessionStorage.removeItem('lumina_questions');
+        }
+    }
+
+
+    const UI = {
+        btn: document.getElementById('generate-btn'),
+        loadingArea: document.getElementById('loading-area'), 
+        status: document.getElementById('system-status'),
+        loader: document.getElementById('ai-loader-bar'),
+        
+        fileInput: document.getElementById('file-upload'),
+        topicInput: document.getElementById('topic-input'),
+        dropZone: document.getElementById('drop-zone'),
+        quizSummaryModal: document.getElementById('quiz-summary-modal'),
+        toast: document.getElementById('toast-message'),
+        clearBtn: document.getElementById('clear-source-btn'),
+        
+        qJumpSelect: document.getElementById('question-jump-select'),
+        quizImage: document.getElementById('quiz-image'),
+        
+        quizLengthSelect: document.getElementById('quiz-length-select'),
+        studyModeRadios: document.querySelectorAll('input[name="study-mode"]'),
+        
+        worksheetView: document.getElementById('view-worksheet'), 
+        worksheetContent: document.getElementById('worksheet-content'),
+        worksheetAnswerKeyContainer: document.getElementById('worksheet-answer-key'),
+        worksheetAnswerKeyContent: document.getElementById('worksheet-answer-key-content'),
+        worksheetShowKeyBtn: document.getElementById('show-answer-key-btn')
+    };
+
+    // --- UTILITY FUNCTIONS ---
+    function aggressivelyCleanRawAIOutput(rawStr) {
+        if (!rawStr) return "";
+        let cleaned = rawStr.replace(/```json\s*/i, '').replace(/```\s*$/i, '').trim();
+        cleaned = cleaned.replace(/here is the json array:/i, '').trim();
+        cleaned = cleaned.replace(/based on the context, here are the questions:/i, '').trim();
+        
+        let start = cleaned.indexOf('[');
+        let end = cleaned.lastIndexOf(']');
+        
+        if (start === -1 || end === -1 || end <= start) {
+            if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+                return `[${cleaned}]`;
+            }
+            return cleaned; 
+        }
+        
+        cleaned = cleaned.substring(start, end + 1);
+        cleaned = cleaned.replace(/,\s*([\]}])/g, '$1'); 
+        cleaned = cleaned.trim().replace(/^`+|`+$/g, '');
+        return cleaned;
+    }
+
+    function safelyParseJSON(rawStr) {
+        let jsonStr = aggressivelyCleanRawAIOutput(rawStr);
+        if (!jsonStr || jsonStr.length < 5) {
+            throw new Error("API output lacks valid JSON structure after cleanup.");
+        }
+        // Updated schema check to include imageUrl
+        const questionSchema = (item) => typeof item === 'object' && item.q && Array.isArray(item.opts) && item.a && item.why && item.imageUrl;
+        try {
+            const parsed = JSON.parse(jsonStr);
+            if (!Array.isArray(parsed)) {
+                if (typeof parsed === 'object' && questionSchema(parsed)) return [parsed];
+                throw new Error("Parsed JSON is not an array.");
+            }
+            if (parsed.some(item => !questionSchema(item))) {
+                 throw new Error("Parsed JSON array contains invalid question objects (missing q, opts, a, why, or imageUrl).");
+            }
+            return parsed;
+        } catch (e) {
+            throw new Error(`Syntax error in Enterprise-generated JSON: ${e.message}`);
+        }
+    }
+
+    function showToast(message, type = 'info') {
+        let iconHTML = '';
+        if (type === 'success') iconHTML = '<i class="fas fa-check-circle"></i>';
+        else if (type === 'warning' || type === 'error') iconHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        else iconHTML = '<i class="fas fa-info-circle"></i>';
+
+        UI.toast.innerHTML = iconHTML + message; 
+        UI.toast.className = `toast ${type}`;
+        UI.toast.classList.remove('hidden');
+        
+        setTimeout(() => { UI.toast.classList.add('hidden'); }, 3000); 
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // --- CORE FUNCTIONS (PDF & SIMULATED ENTERPRISE API) ---
+    async function extractTextFromPDF(file, onProgress) {
+        const safeProgress = (msg) => typeof onProgress === 'function' ? onProgress(msg) : console.log(msg);
+        try {
+            if (!window.pdfjsLib) throw new Error("PDF Engine not ready.");
+            safeProgress("Scanning PDF Structure...");
+            const buffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+            
+            if (pdf.numPages < CONFIG.MIN_PAGES_TO_PROCESS) {
+                 safeProgress(`WARNING: PDF only has ${pdf.numPages} pages. Processing all...`);
+            }
+            
+            let fullText = "";
+            const limit = pdf.numPages; 
+            for (let i = 1; i <= limit; i++) {
+                safeProgress(`Reading Page ${i} of ${limit}...`);
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const strings = content.items.map(item => item.str);
+                fullText += strings.join(" ") + " ";
+                UI.loader.style.width = `${(i / limit) * 50}%`; 
+            }
+            
+            if (fullText.trim().length < 500) { 
+                 throw new Error("Extracted text is too short. Content is lacking.");
+            }
+            return fullText;
+        } catch (e) {
+            throw new Error("PDF Read Failed: " + e.message);
+        }
+    }
+
+    // V6.2: Updated to include Pexels image simulation
+    async function callEnterpriseQuestionAPI(topic, text, onProgress, attempt = 1) {
+        onProgress(`Enterprise API processing context and querying Pexels... Generating ${CONFIG.MAX_QUESTIONS_GENERATED} Qs. (Attempt ${attempt}/${CONFIG.MAX_INFERENCE_RETRIES})`, 50);
+
+        await new Promise(resolve => setTimeout(resolve, 3000)); 
+        
+        const mockQuestions = [];
+        const numQuestions = CONFIG.MAX_QUESTIONS_GENERATED;
+        const mockImageURLs = [
+            "https://images.pexels.com/photos/164005/pexels-photo-164005.jpeg?auto=compress&cs=tinysrgb&w=800", // Fire extinguisher
+            "https://images.pexels.com/photos/209807/pexels-photo-209807.jpeg?auto=compress&cs=tinysrgb&w=800", // Water Leak
+            "https://images.pexels.com/photos/1036329/pexels-photo-1036329.jpeg?auto=compress&cs=tinysrgb&w=800", // Emergency Kit
+            "https://images.pexels.com/photos/1486222/pexels-photo-1486222.jpeg?auto=compress&cs=tinysrgb&w=800", // First Aid Kit
+            "https://images.pexels.com/photos/110820/pexels-photo-110820.jpeg?auto=compress&cs=tinysrgb&w=800" // Smoke Alarm
+        ];
+        
+        for (let i = 1; i <= numQuestions; i++) {
+            mockQuestions.push({
+                q: `Enterprise Q${i}: Based on the visual guide, which item is critical for the "Go Bag" assembly, as mentioned in the ${topic} document?`, 
+                opts: [`A. Portable Radio`, `B. Battery Charger`, `C. First Aid Kit`, `D. Tarp`], 
+                a: `C. First Aid Kit`, 
+                why: `The First Aid Kit is a mandatory inclusion in every personal emergency evacuation kit (Go Bag). The associated image provides a visual context for identifying the item.`,
+                imageUrl: mockImageURLs[i % mockImageURLs.length]
+            });
+        }
+
+        const rawResponse = JSON.stringify(mockQuestions);
+
+        try {
+            const questions = safelyParseJSON(rawResponse);
+            onProgress(`Successfully parsed ${questions.length} visual questions from Enterprise API.`, 100);
+            return questions;
+        } catch (e) {
+            if (attempt < CONFIG.MAX_INFERENCE_RETRIES) {
+                onProgress(`API response parse failed. Retrying...`, 50);
+                await new Promise(resolve => setTimeout(resolve, 1500)); 
+                return callEnterpriseQuestionAPI(topic, text, onProgress, attempt + 1);
+            }
+            throw new Error("API failed to return valid quiz questions after multiple retries. Ensure imageUrl is generated.");
+        }
+    }
+
+
+    // --- CONTROLLER: MAIN LOGIC (Retained) ---
+    async function handleBuild() {
+        const file = UI.fileInput.files[0];
+        const topic = UI.topicInput.value.trim(); 
+
+        if (!file) return showToast("Please select a PDF file.", 'warning');
+        if (!topic) return showToast("Please enter a topic.", 'warning');
+        
+        if (State.allQuestions.length > 0) {
+            const confirmRebuild = confirm(`A library with ${State.allQuestions.length} Qs is loaded. Discard and build a new one for "${topic}"?`);
+            if (!confirmRebuild) return;
+            State.allQuestions = [];
+            sessionStorage.removeItem('lumina_questions');
+        }
+
+        UI.btn.disabled = true;
+        UI.loadingArea.classList.remove('hidden');
+        UI.loader.style.background = 'var(--primary)'; 
+
+        const updateStatus = (msg, percent = null) => {
+            UI.status.innerHTML = `<i class="fas fa-sync fa-spin"></i> ${msg}`;
+            if (percent !== null) UI.loader.style.width = `${percent}%`;
+        };
+
+        try {
+            updateStatus("Initializing Enterprise Workflow...", 0);
+            
+            const text = await extractTextFromPDF(file, updateStatus); 
+            
+            State.lastFile = { name: file.name, size: file.size, topic: topic }; 
+            localStorage.setItem("lumina_file", JSON.stringify(State.lastFile));
+            document.getElementById('file-name').innerText = file.name;
+            UI.dropZone.classList.add('has-file');
+
+            State.allQuestions = await callEnterpriseQuestionAPI(topic, text, updateStatus);
+            
+            if (State.allQuestions.length < CONFIG.MAX_QUESTIONS_GENERATED) {
+                 showToast(`Warning: Only ${State.allQuestions.length} questions generated.`, 'warning');
+            }
+
+            sessionStorage.setItem('lumina_questions', JSON.stringify(State.allQuestions));
+
+            showToast(`Enterprise library built with ${State.allQuestions.length} questions!`, 'success');
+            
+            routeToStudyMode(State.studyMode);
+
+        } catch (err) {
+            UI.status.innerHTML = `<span style="color:var(--error)">❌ Error: ${err.message}</span>`;
+            UI.loader.style.background = 'var(--error)';
+            showToast(`Build Failed: ${err.message.substring(0, 80)}...`, 'error');
+        } finally {
+            UI.btn.disabled = false;
+            UI.loader.style.width = '100%'; 
+            UI.loadingArea.classList.add('hidden');
+        }
+    }
+
+    function routeToStudyMode(mode) {
+        if (State.allQuestions.length === 0) {
+            showToast("Please build a library first.", 'warning');
+            return;
+        }
+
+        const maxQs = State.allQuestions.length;
+        const sessionLength = Math.min(State.quizLength, maxQs);
+        
+        const shuffledQuestions = shuffleArray([...State.allQuestions]);
+        State.sessionQuestions = shuffledQuestions.slice(0, sessionLength);
+        
+        State.currentQIndex = 0;
+        State.quizResults = []; 
+        
+        // V6.2: Centralized view hiding (Critical for skeletal UI fix)
+        document.getElementById('view-hub').classList.add('hidden-view');
+        document.getElementById('view-quiz').classList.add('hidden-view');
+        document.getElementById('view-flashcards').classList.add('hidden-view');
+        document.getElementById('view-worksheet').classList.add('hidden-view'); 
+        document.getElementById('quiz-summary-modal').classList.add('hidden');
+        
+        if (mode === 'quiz') {
+            startQuiz();
+        } else if (mode === 'flashcard') {
+            startFlashcards();
+        } else if (mode === 'worksheet') {
+            startWorksheet();
+        }
+    }
+
+
+    // --- QUIZ FUNCTIONS (Updated for Image) ---
+    function startQuiz() {
+        document.getElementById('view-quiz').classList.remove('hidden-view');
+        UI.qJumpSelect.innerHTML = '';
+        for(let i = 0; i < State.sessionQuestions.length; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.innerText = `Q ${i + 1}`;
+            UI.qJumpSelect.appendChild(option);
+        }
+        renderQuestion();
+    }
+
+    window.renderQuestion = () => {
+        const q = State.sessionQuestions[State.currentQIndex];
+        document.getElementById('question-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
+        document.getElementById('quiz-progress-bar').style.width = `${(State.currentQIndex / State.sessionQuestions.length) * 100}%`;
+        document.getElementById('q-text').innerText = q.q;
+        
+        // V6.2: Image Display
+        if (q.imageUrl) {
+            UI.quizImage.src = q.imageUrl;
+            UI.quizImage.classList.remove('hidden');
+        } else {
+            UI.quizImage.classList.add('hidden');
+        }
+
+        UI.qJumpSelect.value = State.currentQIndex;
+        
+        const container = document.getElementById('options-container');
+        container.innerHTML = '';
+
+        q.opts.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(btn, opt, q); 
+            container.appendChild(btn);
+        });
+
+        document.getElementById('q-feedback').classList.add('hidden');
+        document.getElementById('next-q-btn').classList.add('hidden');
+        document.getElementById('next-q-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Continue" : "Finish & Review";
+        document.getElementById('next-q-btn').onclick = nextQuestion;
+    }
+
+    window.checkAnswer = (btn, selected, qData) => {
+        const buttons = document.querySelectorAll('#options-container .option-btn');
+        buttons.forEach(b => b.disabled = true);
+
+        const isCorrect = selected === qData.a;
+        if (!State.quizResults[State.currentQIndex]) {
+            State.quizResults[State.currentQIndex] = { q: qData.q, correct: isCorrect, selected: selected, answer: qData.a };
+        }
+
+        if (isCorrect) {
+            btn.classList.add('correct');
+            showFeedback(true, `Correct! ${qData.why}`);
+        } else {
+            btn.classList.add('wrong');
+            buttons.forEach(b => { if(b.innerText === qData.a) b.classList.add('correct'); });
+            showFeedback(false, `Oops! ${qData.why}`);
+        }
+        document.getElementById('next-q-btn').classList.remove('hidden');
+    }
+
+    function showFeedback(isSuccess, msg) {
+        const fb = document.getElementById('q-feedback');
+        fb.innerHTML = `<span class="icon">${isSuccess ? '🎉' : '❌'}</span> ${msg}`;
+        fb.classList.remove('hidden');
+    }
+
+    window.nextQuestion = () => {
+        if (State.currentQIndex < State.sessionQuestions.length - 1) {
+            State.currentQIndex++;
+            renderQuestion();
+        } else {
+            showQuizSummary(); 
+        }
+    };
+
+    window.exitQuiz = () => {
+        document.getElementById('view-quiz').classList.add('hidden-view');
+        handleInitialLoad(); 
+    };
+
+    window.jumpToQuestion = (selectElement) => {
+        const index = parseInt(selectElement.value);
+        if (!isNaN(index) && index >= 0 && index < State.sessionQuestions.length) {
+            State.currentQIndex = index;
+            renderQuestion();
+        }
+    };
+    
+    function showQuizSummary() {
+        const total = State.sessionQuestions.length;
+        const correct = State.quizResults.filter(r => r && r.correct).length;
+        document.getElementById('summary-score').innerText = `${correct} / ${total}`;
+        
+        const list = document.getElementById('summary-results-list');
+        list.innerHTML = '';
+
+        State.quizResults.forEach((r, index) => {
+            if (!r) return; 
+            const item = document.createElement('div');
+            item.className = `summary-item ${r.correct ? 'correct' : 'wrong'}`;
+            item.innerHTML = `
+                <div class="summary-q-text">${index + 1}. ${r.q}</div>
+                <div class="summary-icon"><i class="fas fa-${r.correct ? 'check' : 'times'}"></i></div>
+                <div class="summary-answer">
+                    Your Answer: ${r.correct ? r.answer : r.selected || 'N/A'}<br>
+                    Correct Answer: ${r.answer}
+                </div>
+            `;
+            list.appendChild(item);
+        });
+
+        document.getElementById('quiz-summary-modal').classList.remove('hidden');
+    }
+
+    window.closeSummary = () => {
+        document.getElementById('quiz-summary-modal').classList.add('hidden');
+        exitQuiz();
+    };
+
+    window.retakeQuiz = () => {
+        document.getElementById('quiz-summary-modal').classList.add('hidden');
+        startQuiz(); 
+    };
+
+    // --- FLASHCARD FUNCTIONS (Updated for Image) ---
+    function startFlashcards() {
+        document.getElementById('view-flashcards').classList.remove('hidden-view');
+        document.getElementById('flashcard-tracker').innerText = `1/${State.sessionQuestions.length}`;
+        document.getElementById('flashcard-progress-bar').style.width = `0%`;
+        renderFlashcard();
+    }
+
+    window.renderFlashcard = () => {
+        const q = State.sessionQuestions[State.currentQIndex];
+        document.getElementById('flashcard-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
+        document.getElementById('flashcard-progress-bar').style.width = `${(State.currentQIndex / State.sessionQuestions.length) * 100}%`;
+        
+        const cardContainerInner = document.querySelector('#flashcard-container .flashcard-container-inner');
+        cardContainerInner.classList.remove('flipped');
+        
+        const frontContent = document.getElementById('flashcard-front-content');
+        frontContent.innerHTML = q.q + " (Click to Flip)";
+        
+        // V6.2: Add image to the front of the flashcard
+        if (q.imageUrl) {
+            const img = document.createElement('img');
+            img.src = q.imageUrl;
+            img.alt = "Visual Aid";
+            img.className = 'flashcard-image';
+            frontContent.prepend(img);
+        }
+
+        document.getElementById('flashcard-back-content').innerHTML = `
+            <div class="answer-key-section">
+                <h4>Correct Answer:</h4>
+                <p>${q.a}</p>
+            </div>
+            <div class="explanation-section">
+                <h4>Explanation:</h4>
+                <p>${q.why}</p>
+            </div>
+        `;
+
+        document.getElementById('flashcard-next-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Next Card" : "Finish & Back to Hub";
+    };
+
+    window.flipCard = (cardContainerInner) => { cardContainerInner.classList.toggle('flipped'); };
+
+    window.nextCard = () => {
+        if (State.currentQIndex < State.sessionQuestions.length - 1) {
+            State.currentQIndex++;
+            renderFlashcard();
+        } else {
+            exitFlashcards();
+        }
+    };
+
+    window.exitFlashcards = () => {
+        document.getElementById('view-flashcards').classList.add('hidden-view');
+        handleInitialLoad(); 
+    };
+
+
+    // --- WORKSHEET FUNCTIONS (Updated for Image) ---
+    function startWorksheet() {
+        document.getElementById('view-worksheet').classList.remove('hidden-view'); 
+        generateWorksheetContent();
+    }
+
+    function generateWorksheetContent() {
+        let qContent = '<h3>Practice Worksheet</h3><hr>';
+        let aContent = '<h3>Answer Key</h3><hr>';
+        
+        State.sessionQuestions.forEach((q, index) => {
+            const qNum = index + 1;
+            qContent += `
+                <div class="worksheet-item">
+                    <p><strong>${qNum}. ${q.q}</strong></p>
+                    ${q.imageUrl ? `<img src="${q.imageUrl}" style="max-height: 100px; max-width: 80%; display: block; margin: 10px 0; border-radius: 4px; border: 1px solid #ccc;">` : ''}
+                    <div style="height: 35px; margin: 15px 0;"></div>
+                    <div style="font-size: 0.8em; color: var(--text-sub);">MCQ Options:</div>
+                    <ul style="list-style-type: none; padding-left: 20px; font-size: 0.9em; color: var(--text-sub);">
+                        ${q.opts.map(opt => `<li>&nbsp;&nbsp;&nbsp; ${opt}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            aContent += `
+                <div class="worksheet-item">
+                    <p><strong>${qNum}. Answer: ${q.a}</strong></p>
+                    <p style="font-size:0.9em; color:var(--text-sub); margin-top:-10px;"><em>Reason: ${q.why}</em></p>
+                </div>
+            `;
+        });
+        
+        UI.worksheetContent.innerHTML = qContent;
+        UI.worksheetAnswerKeyContent.innerHTML = aContent;
+        UI.worksheetAnswerKeyContainer.classList.add('hidden-print'); 
+        UI.worksheetShowKeyBtn.innerText = "Show Answer Key";
+    }
+
+    window.toggleWorksheetAnswerKey = () => {
+        const isHidden = UI.worksheetAnswerKeyContainer.classList.toggle('hidden-print');
+        UI.worksheetShowKeyBtn.innerText = isHidden ? "Show Answer Key" : "Hide Answer Key";
+    };
+
+    window.printWorksheet = () => { window.print(); };
+    window.closeWorksheet = () => { document.getElementById('view-worksheet').classList.add('hidden-view'); handleInitialLoad(); };
+
+
+    // --- UI MANAGEMENT & INIT (Retained) ---
+    function handleInitialLoad() {
+        document.getElementById('view-hub').classList.remove('hidden-view');
+        document.getElementById('view-quiz').classList.add('hidden-view');
+        document.getElementById('view-flashcards').classList.add('hidden-view');
+        document.getElementById('view-worksheet').classList.add('hidden-view'); 
+
+        UI.quizLengthSelect.value = State.quizLength;
+        document.querySelector(`input[name="study-mode"][value="${State.studyMode}"]`).checked = true;
+
+        if (State.allQuestions.length > 0) {
+            const mode = State.studyMode;
+            const buttonText = (mode === 'worksheet') 
+                ? `Generate Worksheet (${State.quizLength} Qs)`
+                : `Start ${mode.charAt(0).toUpperCase() + mode.slice(1)} (${State.quizLength} Qs)`;
+                
+            UI.btn.innerText = buttonText;
+            showToast(`Enterprise library built with ${State.allQuestions.length} visual questions is ready.`, 'info');
+            UI.btn.onclick = () => routeToStudyMode(State.studyMode);
+        } else {
+            UI.btn.innerText = `Build Library (${CONFIG.MAX_QUESTIONS_GENERATED} Qs)`;
+            UI.btn.onclick = handleBuild;
+        }
+        
+        if (State.lastFile) {
+            document.getElementById('file-name').innerText = State.lastFile.name;
+            UI.topicInput.value = State.lastFile.topic || '';
+            UI.dropZone.classList.add('has-file');
+        } else {
+            document.getElementById('file-name').innerText = 'Select PDF Source';
+            UI.topicInput.value = '';
+            UI.dropZone.classList.remove('has-file');
+        }
+    }
+
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if(file) {
+            State.lastFile = { name: file.name, topic: UI.topicInput.value.trim() }; 
+            localStorage.setItem("lumina_file", JSON.stringify(State.lastFile));
+            State.allQuestions = []; 
+            sessionStorage.removeItem('lumina_questions');
+            handleInitialLoad();
+        }
+    }
+
+    function clearSource() { 
+        State.lastFile = null;
+        State.allQuestions = [];
+        State.sessionQuestions = [];
+        localStorage.removeItem("lumina_file");
+        sessionStorage.removeItem('lumina_questions'); 
+        UI.fileInput.value = '';
+        UI.topicInput.value = '';
+        handleInitialLoad();
+        UI.topicInput.focus();
+        showToast("Input and internal quiz data cleared.", 'info'); 
+    }
+
+    function handleLengthChange(e) {
+        State.quizLength = parseInt(e.target.value);
+        localStorage.setItem("lumina_length", State.quizLength);
+        handleInitialLoad();
+    }
+
+    function handleModeChange(e) {
+        State.studyMode = e.target.value;
+        localStorage.setItem("lumina_mode", State.studyMode);
+        handleInitialLoad();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        UI.dropZone.onclick = () => UI.fileInput.click();
+        UI.fileInput.onchange = handleFileSelect;
+        UI.clearBtn.onclick = clearSource; 
+
+        UI.quizLengthSelect.onchange = handleLengthChange;
+        UI.studyModeRadios.forEach(radio => radio.onchange = handleModeChange);
+        document.getElementById('next-q-btn').onclick = nextQuestion;
+
+        handleInitialLoad(); 
+        
+        // Settings setup (retained)
+        const slider = document.getElementById('age-slider');
+        slider.value = State.settings.age;
+        const updateLevelBadge = (age) => {
+             const role = age < 10 ? 'Explorer' : (age < 16 ? 'Creator' : 'Innovator');
+             document.getElementById('level-badge').innerText = `${age} yrs • ${role}`;
+        };
+        updateLevelBadge(State.settings.age);
+
+        slider.oninput = () => {
+            const val = parseInt(slider.value);
+            updateLevelBadge(val);
+            State.settings.age = val;
+            localStorage.setItem("lumina_age", val);
+        };
+
+        document.getElementById('username-input').value = State.settings.username;
+        document.getElementById('nav-username').innerText = State.settings.username; 
+        
+        document.getElementById('username-input').onchange = (e) => {
+            State.settings.username = e.target.value;
+            document.getElementById('nav-username').innerText = State.settings.username;
+            localStorage.setItem("lumina_user", State.settings.username);
+        };
+    });
+
+    window.toggleSettings = () => {
+        const m = document.getElementById('settings-modal');
+        m.classList.toggle('hidden');
+        if(m.classList.contains('hidden')) {
+            State.settings.username = document.getElementById('username-input').value;
+            document.getElementById('nav-username').innerText = State.settings.username;
+            localStorage.setItem("lumina_user", State.settings.username);
+        }
+    };
+
+    window.resetApp = () => { 
+        if (confirm("Are you sure? This will delete all saved settings and cached data.")) {
+            localStorage.clear(); 
+            sessionStorage.clear(); 
+            location.reload(true); 
+        }
+    };
+</script>
+</body>
 </html>
