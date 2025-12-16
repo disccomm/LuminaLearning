@@ -44,7 +44,7 @@ body {
 }
 
 /* Glass Components */
-.glass-nav, .glass-panel {
+.glass-nav, .glass-panel, .flashcard-face {
     background: var(--bg-surface);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -94,7 +94,7 @@ h2 { margin: 0; font-size: 1.3rem; }
 
 /* Inputs */
 .input-wrapper label { display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
-input[type="text"] {
+input[type="text"], select {
     width: 100%;
     background: rgba(0,0,0,0.3);
     border: 2px solid rgba(255,255,255,0.1);
@@ -106,7 +106,7 @@ input[type="text"] {
     font-size: 1rem;
     transition: 0.3s;
 }
-input[type="text"]:focus { border-color: var(--primary); outline: none; }
+input[type="text"]:focus, select:focus { border-color: var(--primary); outline: none; }
 
 /* Upload Zone */
 .upload-area {
@@ -165,7 +165,7 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
 .clear-btn i { margin-right: 5px; }
 
 
-/* Consolidated Loading Area (New) */
+/* Consolidated Loading Area */
 .loading-area {
     display: flex;
     flex-direction: column;
@@ -173,11 +173,12 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
     margin-top: 15px;
 }
 .status-message { text-align: center; color: var(--primary); font-weight: 700; font-size: 0.9rem; }
-.progress-track { background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
+.progress-track { background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; height: 10px; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, #F42F8C, #6C5DD3); transition: width 0.3s ease-out; }
 
 
 /* Quiz Styles */
+.hidden-view { display: none; }
 .quiz-header {
     display: flex;
     align-items: center;
@@ -191,7 +192,7 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
 }
 .quiz-header span { font-weight: 600; font-size: 0.9rem; }
 
-/* New Question Jump Selector */
+/* Question Jump Selector */
 .q-jump-select {
     background: rgba(0,0,0,0.3);
     border: 1px solid rgba(255,255,255,0.1);
@@ -201,7 +202,7 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
     font-family: var(--font);
     font-size: 0.9rem;
     cursor: pointer;
-    appearance: none; /* Hide default dropdown arrow */
+    appearance: none; 
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23A0A0B0'%3e%3cpath d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
@@ -223,7 +224,7 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
     font-size: 1rem;
     cursor: pointer;
     transition: 0.2s;
-    word-wrap: break-word; /* Ensure text wraps */
+    word-wrap: break-word; 
     min-height: 50px;
 }
 .option-btn:hover { background: rgba(255,255,255,0.1); }
@@ -242,6 +243,73 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
     font-weight: 600;
 }
 .feedback-box .icon { margin-right: 8px; font-size: 1.1em; }
+
+
+/* FLASHCARD STYLES (NEW) */
+.flashcard {
+    height: 350px;
+    perspective: 1000px;
+    cursor: pointer;
+    position: relative;
+    border-radius: var(--radius-lg);
+}
+
+.flashcard-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    transition: transform 0.6s;
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.flashcard-front {
+    transform: rotateY(0deg);
+}
+
+.flashcard-back {
+    transform: rotateY(180deg);
+    text-align: left;
+    justify-content: flex-start;
+    gap: 15px;
+}
+
+.flashcard.flipped .flashcard-front {
+    transform: rotateY(-180deg);
+}
+
+.flashcard.flipped .flashcard-back {
+    transform: rotateY(0deg);
+}
+
+.answer-key-section, .explanation-section {
+    width: 100%;
+    padding: 10px;
+    border-radius: var(--radius-md);
+}
+
+.answer-key-section {
+    background: rgba(0, 216, 133, 0.1);
+}
+.explanation-section {
+    background: rgba(108, 93, 211, 0.1);
+}
+.flashcard-back h4 {
+    margin: 0 0 5px 0;
+    font-size: 1rem;
+    font-weight: 800;
+}
+.flashcard-back p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
 
 
 /* Modal & Summary */
@@ -280,22 +348,29 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
 .summary-item.wrong .summary-icon { color: var(--error); }
 .summary-answer { font-size: 0.8rem; color: var(--text-sub); margin-top: 5px; }
 
-/* Badges for Future Modes */
-.badge-pill {
-    padding: 5px 10px;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    font-weight: 700;
-}
-.secondary-badge {
-    background: rgba(255,255,255,0.1);
-    color: var(--text-sub);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-.secondary-badge.faded {
-    opacity: 0.5;
-}
 
+/* Worksheet Modal (NEW) */
+.worksheet-controls button {
+    font-size: 0.9rem;
+    padding: 12px 15px;
+}
+.worksheet-modal h3 {
+    text-align: center;
+    margin-top: 0;
+    color: #000;
+    font-size: 1.5rem;
+}
+#worksheet-content hr, #worksheet-answer-key hr {
+    border: 0;
+    border-top: 1px solid #ccc;
+    margin: 15px 0;
+}
+.worksheet-item {
+    margin-bottom: 20px;
+}
+.worksheet-item p {
+    margin: 0;
+}
 
 /* Toast Notification */
 .toast {
@@ -309,12 +384,25 @@ input[type="text"]:focus { border-color: var(--primary); outline: none; }
     font-weight: 600;
     z-index: 101;
     opacity: 0;
-    transition: opacity 0.3s, background 0.3s;
+    transition: opacity 0.3s, background 0.3s, transform 0.3s;
+    
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
 }
-.toast:not(.hidden) { opacity: 1; animation: slideUp 0.3s forwards; }
+.toast i { font-size: 1.1rem; }
+
+.toast:not(.hidden) { 
+    opacity: 1; 
+    animation: slideIn 0.3s forwards; 
+}
+
 .toast.info { background: var(--primary); }
-.toast.success { background: var(--success); }
-.toast.warning { background: var(--error); }
+.toast.success { background: var(--success); color: var(--bg-deep); } 
+.toast.warning, .toast.error { background: var(--error); }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { 0% { bottom: 0; opacity: 0; } 100% { bottom: 20px; opacity: 1; } }
+@keyframes slideIn { 
+    0% { transform: translate(-50%, 40px); opacity: 0; } 
+    100% { transform: translate(-50%, 0); opacity: 1; } 
+}

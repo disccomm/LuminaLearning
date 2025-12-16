@@ -1,14 +1,17 @@
 // --- CONFIGURATION ---
 const CONFIG = {
     model: "Phi-3-mini-4k-instruct-q4f16_1-MLC", 
-    pexelsKey: "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM" // <-- ADD YOUR KEY HERE
-    MAX_INFERENCE_RETRIES: 3 
+    pexelsKey: "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM",
+    MAX_INFERENCE_RETRIES: 3,
+    MAX_QUESTIONS_GENERATED: 10 
 };
 
+// --- GLOBAL STATE ---
 const State = {
     engine: null, 
     isEngineLoaded: false,
-    questions: [],
+    allQuestions: [],
+    sessionQuestions: [],
     currentQIndex: 0,
     quizResults: [], 
     settings: {
@@ -16,11 +19,25 @@ const State = {
         age: parseInt(localStorage.getItem("lumina_age")) || 12
     },
     lastFile: JSON.parse(localStorage.getItem("lumina_file")) || null,
+    
+    // V3.1: New state variables for customization
+    studyMode: localStorage.getItem("lumina_mode") || 'quiz',
+    quizLength: parseInt(localStorage.getItem("lumina_length")) || 5 
 };
+
+const savedQuestions = sessionStorage.getItem('lumina_questions');
+if (savedQuestions) {
+    try {
+        State.allQuestions = JSON.parse(savedQuestions);
+    } catch (e) {
+        console.warn("Failed to parse saved questions. Clearing.");
+        sessionStorage.removeItem('lumina_questions');
+    }
+}
+
 
 const UI = {
     btn: document.getElementById('generate-btn'),
-    // Consolidated status and loading elements
     loadingArea: document.getElementById('loading-area'), 
     status: document.getElementById('system-status'),
     loader: document.getElementById('ai-loader-bar'),
@@ -32,51 +49,42 @@ const UI = {
     toast: document.getElementById('toast-message'),
     clearBtn: document.getElementById('clear-source-btn'),
     
-    // New Quiz Navigation
-    qJumpSelect: document.getElementById('question-jump-select')
+    qJumpSelect: document.getElementById('question-jump-select'),
+    
+    quizLengthSelect: document.getElementById('quiz-length-select'),
+    studyModeRadios: document.querySelectorAll('input[name="study-mode"]'),
+    flashcardContainer: document.getElementById('flashcard-container'),
+    worksheetModal: document.getElementById('worksheet-modal'),
+    worksheetContent: document.getElementById('worksheet-content'),
+    worksheetAnswerKey: document.getElementById('worksheet-answer-key-content'),
+    worksheetShowKeyBtn: document.getElementById('show-answer-key-btn')
 };
 
-// --- UTILITY 1: AGGRESSIVE AI OUTPUT CLEANUP (REINFORCED) ---
+// --- UTILITY FUNCTIONS ---
 function aggressivelyCleanRawAIOutput(rawStr) {
     if (!rawStr) return "";
-
-    // 1. Remove common pre/post-amble text, including code fences
     let cleaned = rawStr.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
     cleaned = cleaned.replace(/here is the json array:/i, '').trim();
-    
-    // Aggressive: Remove leading comments or extra text before the array starts
     let start = cleaned.indexOf('[');
     let end = cleaned.lastIndexOf(']');
-
     if (start === -1 || end === -1 || end <= start) {
         return cleaned; 
     }
-    
-    // Extract the content inside the array, including the brackets
     cleaned = cleaned.substring(start, end + 1);
-
-    // 2. Fix 1: Remove trailing commas before a closing bracket or curly brace.
     cleaned = cleaned.replace(/,\s*([\]}])/g, '$1'); 
-    
-    // 3. Fix 2: Remove leading/trailing quotes or backticks.
     cleaned = cleaned.trim().replace(/^`+|`+$/g, '');
-
     return cleaned;
 }
 
-// --- UTILITY 2: JSON REPAIR FUNCTION ---
 function safelyParseJSON(rawStr) {
     let jsonStr = aggressivelyCleanRawAIOutput(rawStr);
-
     if (!jsonStr || jsonStr.length < 5) {
         throw new Error("AI output lacks valid JSON structure after cleanup.");
     }
-    
     try {
         const parsed = JSON.parse(jsonStr);
-        // CRITICAL VALIDATION: Ensure the structure is an array of objects
-        if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'object' || !item.q || !Array.isArray(item.opts))) {
-             throw new Error("Parsed JSON structure is invalid. Expected an array of question objects.");
+        if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'object' || !item.q || !Array.isArray(item.opts) || !item.why)) {
+             throw new Error("Parsed JSON structure is invalid. Expected an array of question objects including 'q', 'opts', 'a', and 'why'.");
         }
         return parsed;
     } catch (e) {
@@ -85,31 +93,39 @@ function safelyParseJSON(rawStr) {
     }
 }
 
-// --- UTILITY 3: TOAST NOTIFICATION ---
 function showToast(message, type = 'info') {
-    UI.toast.innerText = message;
+    let iconHTML = '';
+    if (type === 'success') iconHTML = '<i class="fas fa-check-circle"></i>';
+    else if (type === 'warning' || type === 'error') iconHTML = '<i class="fas fa-exclamation-triangle"></i>';
+    else iconHTML = '<i class="fas fa-info-circle"></i>';
+
+    UI.toast.innerHTML = iconHTML + message; 
     UI.toast.className = `toast ${type}`;
     UI.toast.classList.remove('hidden');
+    
     setTimeout(() => {
-        UI.toast.classList.add('hidden');
-    }, 3000);
+        UI.toast.classList.add('hidden'); 
+    }, 3000); 
 }
 
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
 
-// --- CORE 1: PDF EXTRACTION ---
+// --- CORE FUNCTIONS (PDF & AI) ---
 async function extractTextFromPDF(file, onProgress) {
     const safeProgress = (msg) => typeof onProgress === 'function' ? onProgress(msg) : console.log(msg);
-
     try {
         if (!window.pdfjsLib) throw new Error("PDF Engine not ready.");
-        
         safeProgress("Scanning PDF Structure...");
         const buffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
         let fullText = "";
-        
         const limit = Math.min(pdf.numPages, 5); 
-        
         for (let i = 1; i <= limit; i++) {
             safeProgress(`Reading Page ${i} of ${limit}...`);
             const page = await pdf.getPage(i);
@@ -117,14 +133,12 @@ async function extractTextFromPDF(file, onProgress) {
             const strings = content.items.map(item => item.str);
             fullText += strings.join(" ") + " ";
         }
-        
         return fullText;
     } catch (e) {
         throw new Error("PDF Read Failed: " + e.message);
     }
 }
 
-// --- CORE 2: AI ENGINE ---
 async function getAIEngine(onProgress) {
     if (State.engine && State.isEngineLoaded) {
         onProgress("AI Engine ready (Instant Load).", 100);
@@ -133,32 +147,23 @@ async function getAIEngine(onProgress) {
     if (!navigator.gpu) {
         throw new Error("WebGPU not supported. Use Chrome/Edge on Desktop/Android.");
     }
-    
     onProgress("Booting GPU Engine: This is a one-time download for first use.", 10);
-
     const engine = new window.webllm.MLCEngine();
-    
     engine.setInitProgressCallback((report) => {
         let percentage = report.progress * 100;
         let text = report.text;
-
         if (text.includes("Fetching")) text = "First time user - One time load...";
         if (text.includes("Loading")) text = "Loading into GPU VRAM...";
-        
         onProgress(text, percentage);
     });
-
     await engine.reload(CONFIG.model);
-    
     State.engine = engine;
     State.isEngineLoaded = true;
     return engine;
 }
 
-// Function with improved retry logic and prompt
 async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
     const engine = await getAIEngine(onProgress);
-    
     UI.loader.style.width = `0%`;
     onProgress(`AI is thinking... (Attempt ${attempt}/${CONFIG.MAX_INFERENCE_RETRIES})`, 0);
 
@@ -166,14 +171,11 @@ async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
     const contextLimit = 1500;
     const textContext = text.substring(0, contextLimit);
     
-    // Prompt: Strictly enforce JSON with full option text
     const prompt = `
     Context: ${textContext}
     Topic: ${topic}
-    Create 5 high-quality, multiple-choice questions for a student at the ${age}-year-old difficulty level.
-    
+    Create ${CONFIG.MAX_QUESTIONS_GENERATED} high-quality, multiple-choice questions for a student at the ${age}-year-old difficulty level.
     **CRITICAL INSTRUCTION:** Return ONLY a JSON Array. DO NOT include any text, notes, or explanations before or after the array.
-    
     The JSON structure MUST strictly adhere to this format:
     
     \`\`\`json
@@ -182,13 +184,13 @@ async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
         "q": "Question Text", 
         "opts": ["Full Option Text A","Full Option Text B","Full Option Text C","Full Option Text D"], 
         "a": "Correct Full Option Text (Must exactly match one of the opts)", 
-        "why": "Brief Explanation"
+        "why": "Brief, detailed explanation for the answer (CRITICAL FOR FLASHCARDS)." 
       },
-      // ... up to 5 questions
+      // ... up to 10 questions
     ]
     \`\`\`
     
-    Ensure the 'opts' array contains the full, descriptive text for each choice, not just single letters.
+    Ensure the 'opts' array contains the full, descriptive text for each choice.
     `;
 
     const response = await engine.chat.completions.create({
@@ -199,7 +201,9 @@ async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
     const raw = response.choices[0].message.content;
 
     try {
-        return safelyParseJSON(raw);
+        const questions = safelyParseJSON(raw);
+        if (questions.length < 5) throw new Error(`AI generated only ${questions.length} questions. Need at least 5.`);
+        return questions;
     } catch (e) {
         console.error(`AI Output Parse Failed (Attempt ${attempt}):`, e);
         if (attempt < CONFIG.MAX_INFERENCE_RETRIES) {
@@ -212,17 +216,24 @@ async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
 }
 
 
-// --- CONTROLLER: MAIN LOGIC (STRICT SEQUENCING) ---
+// --- CONTROLLER: MAIN LOGIC ---
 async function handleBuild() {
     const file = UI.fileInput.files[0];
     const topic = UI.topicInput.value.trim(); 
 
     if (!file) return showToast("Please select a PDF file.", 'warning');
     if (!topic) return showToast("Please enter a topic.", 'warning');
+    
+    if (State.allQuestions.length > 0) {
+        const confirmRebuild = confirm(`A quiz library for "${State.lastFile.name}" already exists. Are you sure you want to discard it and build a new one for "${topic}"?`);
+        if (!confirmRebuild) {
+            return;
+        }
+        State.allQuestions = [];
+        sessionStorage.removeItem('lumina_questions');
+    }
 
     UI.btn.disabled = true;
-    
-    // CRITICAL FIX: Ensure UI is fully ready and visible BEFORE any async call that reports status
     UI.loadingArea.classList.remove('hidden');
     UI.loader.style.background = 'var(--primary)'; 
 
@@ -232,21 +243,17 @@ async function handleBuild() {
     };
 
     try {
-        // 1. Load AI Engine
         await getAIEngine(updateStatus);
-
-        // 2. PDF
         UI.loader.style.width = `0%`;
         const text = await extractTextFromPDF(file, (msg) => updateStatus(msg, 10)); 
-
-        // 3. AI Inference with Retries
-        State.questions = await attemptGenerateQuestions(topic, text, updateStatus);
+        State.allQuestions = await attemptGenerateQuestions(topic, text, updateStatus);
         
-        if (State.questions.length === 0) throw new Error("AI returned an empty question set.");
+        if (State.allQuestions.length === 0) throw new Error("AI returned an empty question set.");
+        sessionStorage.setItem('lumina_questions', JSON.stringify(State.allQuestions));
 
-        // 4. Start Quiz
-        showToast(`Library built with ${State.questions.length} questions!`, 'success');
-        startQuiz();
+        showToast(`Library built with ${State.allQuestions.length} questions!`, 'success');
+        
+        routeToStudyMode(State.studyMode);
 
     } catch (err) {
         UI.status.innerHTML = `<span style="color:var(--error)">❌ Error: ${err.message}</span>`;
@@ -255,19 +262,48 @@ async function handleBuild() {
     } finally {
         UI.btn.disabled = false;
         UI.loader.style.width = '100%'; 
+        UI.loadingArea.classList.add('hidden');
+    }
+}
+
+function routeToStudyMode(mode) {
+    if (State.allQuestions.length === 0) {
+        showToast("Please build a library first.", 'warning');
+        return;
+    }
+
+    const shuffledQuestions = shuffleArray([...State.allQuestions]);
+    State.sessionQuestions = shuffledQuestions.slice(0, Math.min(State.quizLength, CONFIG.MAX_QUESTIONS_GENERATED));
+    
+    if (State.sessionQuestions.length < State.quizLength) {
+        showToast(`Warning: Only ${State.sessionQuestions.length} questions generated. Using all available.`, 'warning');
+    }
+
+    State.currentQIndex = 0;
+    State.quizResults = []; 
+    
+    document.getElementById('view-quiz').classList.add('hidden-view');
+    document.getElementById('view-flashcards').classList.add('hidden-view');
+    UI.quizSummaryModal.classList.add('hidden');
+    UI.worksheetModal.classList.add('hidden');
+    
+    if (mode === 'quiz') {
+        startQuiz();
+    } else if (mode === 'flashcard') {
+        startFlashcards();
+    } else if (mode === 'worksheet') {
+        startWorksheet();
     }
 }
 
 
-// --- QUIZ & UI FUNCTIONS ---
+// --- QUIZ FUNCTIONS (USES State.sessionQuestions) ---
 function startQuiz() {
     document.getElementById('view-hub').classList.add('hidden');
     document.getElementById('view-quiz').classList.remove('hidden-view');
-    State.currentQIndex = 0;
-    State.quizResults = []; 
-    // New: Populate Jump Selector
+
     UI.qJumpSelect.innerHTML = '';
-    for(let i = 0; i < State.questions.length; i++) {
+    for(let i = 0; i < State.sessionQuestions.length; i++) {
         const option = document.createElement('option');
         option.value = i;
         option.innerText = `Question ${i + 1}`;
@@ -276,30 +312,19 @@ function startQuiz() {
     renderQuestion();
 }
 
-window.jumpToQuestion = (selectElement) => {
-    const index = parseInt(selectElement.value);
-    if (!isNaN(index) && index >= 0 && index < State.questions.length) {
-        State.currentQIndex = index;
-        renderQuestion();
-    }
-};
-
 function renderQuestion() {
-    const q = State.questions[State.currentQIndex];
-    document.getElementById('question-tracker').innerText = `${State.currentQIndex + 1}/${State.questions.length}`;
-    document.getElementById('quiz-progress-bar').style.width = `${((State.currentQIndex) / State.questions.length) * 100}%`;
+    const q = State.sessionQuestions[State.currentQIndex];
+    document.getElementById('question-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
+    document.getElementById('quiz-progress-bar').style.width = `${((State.currentQIndex) / State.sessionQuestions.length) * 100}%`;
     document.getElementById('q-text').innerText = q.q;
     
-    // Update question jump select box
     UI.qJumpSelect.value = State.currentQIndex;
     
-    // (Image container logic remains the same)
     const container = document.getElementById('options-container');
     container.innerHTML = '';
 
-    // FINAL VALIDATION CHECK: Reject questions with bad options (e.g. single letters)
     if (!q.opts || q.opts.length < 4 || q.opts.every(opt => opt.length < 2)) {
-        container.innerHTML = `<p style="color: var(--error);">Error: Question options are corrupted. AI returned invalid data. Exiting quiz is recommended.</p>`;
+        container.innerHTML = `<p style="color: var(--error);">Error: Question options are corrupted. Exiting quiz is recommended.</p>`;
         document.getElementById('next-q-btn').innerText = "Exit Quiz";
         document.getElementById('next-q-btn').onclick = exitQuiz;
         document.getElementById('next-q-btn').classList.remove('hidden');
@@ -316,11 +341,10 @@ function renderQuestion() {
 
     document.getElementById('q-feedback').classList.add('hidden');
     document.getElementById('next-q-btn').classList.add('hidden');
-    document.getElementById('next-q-btn').innerText = (State.currentQIndex < State.questions.length - 1) ? "Continue" : "Finish & Review";
+    document.getElementById('next-q-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Continue" : "Finish & Review";
     document.getElementById('next-q-btn').onclick = nextQuestion;
 }
 
-// ... (checkAnswer, showFeedback remain the same) ...
 function checkAnswer(btn, selected, qData) {
     const buttons = document.querySelectorAll('.option-btn');
     buttons.forEach(b => b.disabled = true);
@@ -352,7 +376,7 @@ function showFeedback(isSuccess, msg) {
 }
 
 window.nextQuestion = () => {
-    if (State.currentQIndex < State.questions.length - 1) {
+    if (State.currentQIndex < State.sessionQuestions.length - 1) {
         State.currentQIndex++;
         renderQuestion();
     } else {
@@ -363,15 +387,133 @@ window.nextQuestion = () => {
 window.exitQuiz = () => {
     document.getElementById('view-quiz').classList.add('hidden-view');
     document.getElementById('view-hub').classList.remove('hidden');
-    // Hide consolidated loading UI components
-    UI.loadingArea.classList.add('hidden');
-    UI.loader.style.width = '0%';
+    handleInitialLoad(); 
+};
+
+window.jumpToQuestion = (selectElement) => {
+    const index = parseInt(selectElement.value);
+    if (!isNaN(index) && index >= 0 && index < State.sessionQuestions.length) {
+        State.currentQIndex = index;
+        renderQuestion();
+    }
 };
 
 
-// --- QUIZ SUMMARY MODAL ---
+// --- FLASHCARD FUNCTIONS (V3.1) ---
+function startFlashcards() {
+    document.getElementById('view-hub').classList.add('hidden');
+    document.getElementById('view-flashcards').classList.remove('hidden-view');
+    
+    document.getElementById('flashcard-tracker').innerText = `1/${State.sessionQuestions.length}`;
+    document.getElementById('flashcard-progress-bar').style.width = `0%`;
+    
+    renderFlashcard();
+}
+
+window.renderFlashcard = () => {
+    const q = State.sessionQuestions[State.currentQIndex];
+    
+    document.getElementById('flashcard-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
+    document.getElementById('flashcard-progress-bar').style.width = `${(State.currentQIndex / State.sessionQuestions.length) * 100}%`;
+    
+    const card = UI.flashcardContainer;
+    const front = document.getElementById('flashcard-front-content');
+    const back = document.getElementById('flashcard-back-content');
+    
+    card.classList.remove('flipped');
+    
+    front.innerText = q.q;
+    
+    back.innerHTML = `
+        <div class="answer-key-section">
+            <h4 style="color:var(--success)">Correct Answer:</h4>
+            <p>${q.a}</p>
+        </div>
+        <div class="explanation-section">
+            <h4 style="color:var(--primary)">Explanation:</h4>
+            <p>${q.why}</p>
+        </div>
+    `;
+
+    document.getElementById('flashcard-next-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Next Card" : "Finish & Back to Hub";
+};
+
+window.flipCard = (cardElement) => {
+    cardElement.classList.toggle('flipped');
+};
+
+window.nextCard = () => {
+    if (State.currentQIndex < State.sessionQuestions.length - 1) {
+        State.currentQIndex++;
+        renderFlashcard();
+    } else {
+        exitFlashcards();
+    }
+};
+
+window.exitFlashcards = () => {
+    document.getElementById('view-flashcards').classList.add('hidden-view');
+    document.getElementById('view-hub').classList.remove('hidden');
+    handleInitialLoad(); 
+};
+
+
+// --- WORKSHEET FUNCTIONS (V3.1) ---
+function startWorksheet() {
+    document.getElementById('view-hub').classList.add('hidden');
+    UI.worksheetModal.classList.remove('hidden');
+
+    generateWorksheetContent();
+}
+
+function generateWorksheetContent() {
+    let qContent = '<h3>Practice Worksheet</h3><hr>';
+    let aContent = '<h3>Answer Key</h3><hr>';
+    
+    State.sessionQuestions.forEach((q, index) => {
+        const qNum = index + 1;
+        
+        qContent += `
+            <div class="worksheet-item">
+                <p><strong>${qNum}. ${q.q}</strong></p>
+                <div style="height: 20px; border-bottom: 1px dashed var(--text-sub); margin-bottom: 15px;"></div>
+            </div>
+        `;
+        
+        aContent += `
+            <div class="worksheet-item">
+                <p><strong>${qNum}. Answer: ${q.a}</strong></p>
+                <p style="font-size:0.9em; color:var(--text-sub); margin-top:-10px;"><em>Reason: ${q.why}</em></p>
+            </div>
+        `;
+    });
+    
+    UI.worksheetContent.innerHTML = qContent;
+    UI.worksheetAnswerKey.innerHTML = aContent;
+    document.getElementById('worksheet-answer-key').classList.add('hidden-print');
+    UI.worksheetShowKeyBtn.innerText = "Show Answer Key";
+}
+
+window.toggleWorksheetAnswerKey = () => {
+    const key = document.getElementById('worksheet-answer-key');
+    const isHidden = key.classList.toggle('hidden-print');
+    UI.worksheetShowKeyBtn.innerText = isHidden ? "Show Answer Key" : "Hide Answer Key";
+};
+
+window.printWorksheet = () => {
+    window.print();
+};
+
+window.closeWorksheet = () => {
+    UI.worksheetModal.classList.add('hidden');
+    document.getElementById('view-hub').classList.remove('hidden');
+    handleInitialLoad();
+};
+
+
+// --- UI MANAGEMENT & INIT ---
 function showQuizSummary() {
-    const total = State.questions.length;
+    const total = State.sessionQuestions.length;
     const correct = State.quizResults.filter(r => r.correct).length;
     const scoreText = `${correct} / ${total}`;
     
@@ -407,8 +549,44 @@ window.retakeQuiz = () => {
     startQuiz(); 
 };
 
+function handleInitialLoad() {
+    document.getElementById('view-hub').classList.remove('hidden');
+    document.getElementById('view-quiz').classList.add('hidden-view');
+    document.getElementById('view-flashcards').classList.add('hidden-view');
+    UI.quizSummaryModal.classList.add('hidden'); 
+    UI.worksheetModal.classList.add('hidden');
 
-// --- INIT LISTENERS & APP STATE ---
+    UI.quizLengthSelect.value = State.quizLength;
+    document.querySelector(`input[name="study-mode"][value="${State.studyMode}"]`).checked = true;
+
+    if (State.allQuestions.length > 0) {
+        const mode = State.studyMode;
+        const buttonText = (mode === 'worksheet') 
+            ? "Generate Worksheet" 
+            : `Start ${mode.charAt(0).toUpperCase() + mode.slice(1)} (${State.quizLength} Qs)`;
+            
+        UI.btn.innerText = buttonText;
+        showToast(`Library built with ${CONFIG.MAX_QUESTIONS_GENERATED} questions is ready.`, 'info');
+        UI.btn.onclick = () => routeToStudyMode(State.studyMode);
+        UI.topicInput.disabled = false;
+        UI.dropZone.style.pointerEvents = 'auto';
+
+    } else {
+        UI.btn.innerText = "Build Library";
+        UI.btn.onclick = handleBuild;
+        UI.topicInput.disabled = false;
+        UI.dropZone.style.pointerEvents = 'auto';
+    }
+    
+    if (State.lastFile) {
+        document.getElementById('file-name').innerText = State.lastFile.name;
+        UI.dropZone.classList.add('has-file');
+    } else {
+        document.getElementById('file-name').innerText = 'Select PDF Source';
+        UI.dropZone.classList.remove('has-file');
+    }
+}
+
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(file) {
@@ -416,31 +594,49 @@ function handleFileSelect(e) {
         localStorage.setItem("lumina_file", JSON.stringify(State.lastFile));
         document.getElementById('file-name').innerText = file.name;
         UI.dropZone.classList.add('has-file');
+        UI.btn.innerText = "Build Library";
+        UI.btn.onclick = handleBuild;
     }
 }
 
 function clearSource() { 
     State.lastFile = null;
+    State.allQuestions = [];
+    State.sessionQuestions = [];
     localStorage.removeItem("lumina_file");
+    sessionStorage.removeItem('lumina_questions'); 
     UI.fileInput.value = '';
     UI.topicInput.value = '';
-    document.getElementById('file-name').innerText = 'Select PDF Source';
-    UI.dropZone.classList.remove('has-file');
+    handleInitialLoad();
     UI.topicInput.focus();
-    showToast("Input cleared.", 'info'); 
+    showToast("Input and internal quiz data cleared.", 'info'); 
+}
+
+function handleLengthChange(e) {
+    State.quizLength = parseInt(e.target.value);
+    localStorage.setItem("lumina_length", State.quizLength);
+    handleInitialLoad();
+}
+
+function handleModeChange(e) {
+    State.studyMode = e.target.value;
+    localStorage.setItem("lumina_mode", State.studyMode);
+    handleInitialLoad();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     UI.dropZone.onclick = () => UI.fileInput.click();
     UI.fileInput.onchange = handleFileSelect;
-    UI.btn.onclick = handleBuild;
     UI.clearBtn.onclick = clearSource; 
 
-    // ... (rest of DOMContentLoaded for settings/slider remains the same) ...
+    UI.quizLengthSelect.onchange = handleLengthChange;
+    UI.studyModeRadios.forEach(radio => radio.onchange = handleModeChange);
 
+    handleInitialLoad(); 
+    
+    // Settings setup (unchanged)
     const slider = document.getElementById('age-slider');
     slider.value = State.settings.age;
-    
     const role = State.settings.age < 10 ? 'Explorer' : (State.settings.age < 16 ? 'Creator' : 'Innovator');
     document.getElementById('level-badge').innerText = `${State.settings.age} yrs • ${role}`;
 
@@ -454,15 +650,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('username-input').value = State.settings.username;
     document.getElementById('nav-username').innerText = State.settings.username; 
-    
-    if (State.lastFile) {
-        document.getElementById('file-name').innerText = State.lastFile.name;
-        UI.dropZone.classList.add('has-file');
-        showToast(`Ready to analyze ${State.lastFile.name}.`, 'info');
-    }
 });
 
-// Settings Modal Handlers
 window.toggleSettings = () => {
     const m = document.getElementById('settings-modal');
     m.classList.toggle('hidden');
@@ -478,6 +667,7 @@ window.toggleSettings = () => {
 window.resetApp = () => { 
     if (confirm("Are you sure? This will delete all saved settings and cached data (including the AI model weights). You will have to re-download the AI model.")) {
         localStorage.clear(); 
+        sessionStorage.clear(); 
         location.reload(true); 
     }
 };
