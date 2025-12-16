@@ -54,7 +54,9 @@ const UI = {
     quizLengthSelect: document.getElementById('quiz-length-select'),
     studyModeRadios: document.querySelectorAll('input[name="study-mode"]'),
     flashcardContainer: document.getElementById('flashcard-container'),
-    worksheetModal: document.getElementById('worksheet-modal'),
+    
+    // V4.0: Target the full-screen view instead of the modal
+    worksheetView: document.getElementById('view-worksheet'), 
     worksheetContent: document.getElementById('worksheet-content'),
     worksheetAnswerKey: document.getElementById('worksheet-answer-key-content'),
     worksheetShowKeyBtn: document.getElementById('show-answer-key-btn')
@@ -184,7 +186,7 @@ async function attemptGenerateQuestions(topic, text, onProgress, attempt = 1) {
         "q": "Question Text", 
         "opts": ["Full Option Text A","Full Option Text B","Full Option Text C","Full Option Text D"], 
         "a": "Correct Full Option Text (Must exactly match one of the opts)", 
-        "why": "Brief, detailed explanation for the answer (CRITICAL FOR FLASHCARDS)." 
+        "why": "Brief, detailed explanation for the answer (CRITICAL FOR FLASHCARDS/REVIEW)." 
       },
       // ... up to 10 questions
     ]
@@ -282,10 +284,12 @@ function routeToStudyMode(mode) {
     State.currentQIndex = 0;
     State.quizResults = []; 
     
+    // V4.0: Hide all three main study views before routing
     document.getElementById('view-quiz').classList.add('hidden-view');
     document.getElementById('view-flashcards').classList.add('hidden-view');
+    document.getElementById('view-worksheet').classList.add('hidden-view'); // V4.0 Refactor
+    
     UI.quizSummaryModal.classList.add('hidden');
-    UI.worksheetModal.classList.add('hidden');
     
     if (mode === 'quiz') {
         startQuiz();
@@ -311,6 +315,8 @@ function startQuiz() {
     }
     renderQuestion();
 }
+
+// ... (renderQuestion, checkAnswer, showFeedback, nextQuestion, exitQuiz, jumpToQuestion remain the same) ...
 
 function renderQuestion() {
     const q = State.sessionQuestions[State.currentQIndex];
@@ -399,7 +405,7 @@ window.jumpToQuestion = (selectElement) => {
 };
 
 
-// --- FLASHCARD FUNCTIONS (V3.1) ---
+// --- FLASHCARD FUNCTIONS (USES State.sessionQuestions) ---
 function startFlashcards() {
     document.getElementById('view-hub').classList.add('hidden');
     document.getElementById('view-flashcards').classList.remove('hidden-view');
@@ -458,11 +464,10 @@ window.exitFlashcards = () => {
 };
 
 
-// --- WORKSHEET FUNCTIONS (V3.1) ---
+// --- WORKSHEET FUNCTIONS (V4.0: Refactored to Full View) ---
 function startWorksheet() {
     document.getElementById('view-hub').classList.add('hidden');
-    UI.worksheetModal.classList.remove('hidden');
-
+    document.getElementById('view-worksheet').classList.remove('hidden-view'); // V4.0: View switch
     generateWorksheetContent();
 }
 
@@ -505,7 +510,7 @@ window.printWorksheet = () => {
 };
 
 window.closeWorksheet = () => {
-    UI.worksheetModal.classList.add('hidden');
+    document.getElementById('view-worksheet').classList.add('hidden-view'); // V4.0: View switch
     document.getElementById('view-hub').classList.remove('hidden');
     handleInitialLoad();
 };
@@ -553,8 +558,9 @@ function handleInitialLoad() {
     document.getElementById('view-hub').classList.remove('hidden');
     document.getElementById('view-quiz').classList.add('hidden-view');
     document.getElementById('view-flashcards').classList.add('hidden-view');
+    document.getElementById('view-worksheet').classList.add('hidden-view'); // V4.0: Added worksheet view
+    
     UI.quizSummaryModal.classList.add('hidden'); 
-    UI.worksheetModal.classList.add('hidden');
 
     UI.quizLengthSelect.value = State.quizLength;
     document.querySelector(`input[name="study-mode"][value="${State.studyMode}"]`).checked = true;

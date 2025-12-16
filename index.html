@@ -7,12 +7,14 @@
     <script src="https://cdn.jsdelivr.net/npm/@webllm/webllm@0.2.1/dist/webllm.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
+        /* Print Styles - Ensure only the worksheet view is printed */
         @media print {
             body * { visibility: hidden; }
-            #worksheet-modal, #worksheet-modal * { visibility: visible; }
-            #worksheet-modal { position: absolute; left: 0; top: 0; width: 100%; }
-            .modal-header, .worksheet-controls, .hidden-print { display: none !important; }
-            .worksheet-item { margin-bottom: 20px; page-break-inside: avoid; }
+            #view-worksheet, #view-worksheet * { visibility: visible; }
+            #view-worksheet { position: absolute; left: 0; top: 0; width: 100%; height: auto; padding: 0 !important; margin: 0 auto; }
+            .worksheet-header, .worksheet-controls, .hidden-print, .glass-panel { display: none !important; }
+            .worksheet-content-wrapper { padding: 0 !important; background: none !important; color: #000 !important; }
+            .worksheet-item { margin-bottom: 20px; page-break-inside: avoid; color: #000; }
         }
     </style>
 </head>
@@ -143,6 +145,29 @@
         </div>
 
 
+        <div id="view-worksheet" class="hidden-view" style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div class="worksheet-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 1.5rem;">Printable Practice Sheet</h2>
+                <button class="icon-btn" onclick="closeWorksheet()"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="worksheet-content-wrapper glass-panel" style="padding: 25px; border-radius: 12px; height: auto;">
+                <div id="worksheet-content" style="padding: 15px 0; color: var(--text-main);">
+                    </div>
+                
+                <div id="worksheet-answer-key" class="hidden-print" style="padding: 15px 0; margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.2);">
+                    <div id="worksheet-answer-key-content">
+                        </div>
+                </div>
+            </div>
+            
+            <div class="worksheet-controls" style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="show-answer-key-btn" class="action-btn secondary" onclick="toggleWorksheetAnswerKey()" style="flex: 1;">Show Answer Key</button>
+                <button class="action-btn" onclick="printWorksheet()" style="flex: 1;"><i class="fas fa-print"></i> Print Worksheet</button>
+            </div>
+        </div>
+        
+
         <div id="quiz-summary-modal" class="modal-overlay hidden">
             <div class="glass-panel modal-content">
                 <h1>Review</h1>
@@ -155,29 +180,6 @@
                 <button class="action-btn" onclick="closeSummary()">Back to Hub</button>
             </div>
         </div>
-        
-        <div id="worksheet-modal" class="modal-overlay hidden">
-            <div class="glass-panel modal-content" style="max-width: 600px; padding: 40px; border-radius: 12px; height: 90vh;">
-                <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2 style="margin: 0;">Printable Practice Sheet</h2>
-                    <button class="icon-btn" onclick="closeWorksheet()" style="background: none; color: var(--text-sub);"><i class="fas fa-times"></i></button>
-                </div>
-                
-                <div id="worksheet-content" style="overflow-y: auto; flex-grow: 1; padding: 15px; background: #fff; color: #000; border-radius: 8px;">
-                    </div>
-                
-                <div id="worksheet-answer-key" class="hidden-print" style="overflow-y: auto; padding: 15px; background: #f0f0f0; color: #000; border-radius: 8px; margin-top: 10px;">
-                    <div id="worksheet-answer-key-content">
-                        </div>
-                </div>
-                
-                <div class="worksheet-controls" style="display: flex; gap: 10px;">
-                    <button id="show-answer-key-btn" class="action-btn secondary" onclick="toggleWorksheetAnswerKey()">Show Answer Key</button>
-                    <button class="action-btn" onclick="printWorksheet()" style="flex: 1;"><i class="fas fa-print"></i> Print Worksheet</button>
-                </div>
-            </div>
-        </div>
-
 
         <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target.id === 'settings-modal') toggleSettings()">
             <div class="glass-panel modal-content">
