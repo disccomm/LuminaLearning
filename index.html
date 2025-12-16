@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lumina AI</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
@@ -64,7 +61,8 @@
                         <span>Tap to browse files</span>
                     </div>
                 </div>
-                <button class="clear-btn" id="clear-source-btn"><i class="fas fa-trash-alt"></i> Clear Source</button>
+                
+                <button class="clear-btn" id="clear-source-btn"><i class="fas fa-trash-alt"></i> Clear Input</button>
 
 
                 <button class="action-btn" id="generate-btn">
@@ -73,16 +71,31 @@
                     </span>
                 </button>
 
-                <div id="ai-progress-container" class="progress-track hidden" style="margin-top:15px; height:6px;">
-                    <div class="progress-fill" id="ai-loader-bar" style="width: 0%"></div>
+                <div id="loading-area" class="loading-area hidden">
+                    <div class="progress-track" style="height:8px;">
+                        <div class="progress-fill" id="ai-loader-bar" style="width: 0%"></div>
+                    </div>
+                    <div id="system-status" class="status-message">Initializing...</div>
                 </div>
-                <div id="system-status" class="status-message hidden">Initializing...</div>
+
+                <div class="mode-selection" style="margin-top: 20px;">
+                    <h3 style="color:var(--text-sub); font-size: 1rem; margin-bottom: 10px;">Future Modes:</h3>
+                    <div style="display: flex; gap: 10px;">
+                        <span class="badge-pill secondary-badge">Blitz Quiz (Active)</span>
+                        <span class="badge-pill secondary-badge faded">Flashcards</span>
+                        <span class="badge-pill secondary-badge faded">Worksheet</span>
+                    </div>
+                </div>
             </div>
         </main>
 
         <main id="view-quiz" class="hidden-view">
             <div class="quiz-header">
                 <button class="icon-btn" onclick="exitQuiz()"><i class="fas fa-times"></i></button>
+                
+                <select id="question-jump-select" class="q-jump-select" onchange="jumpToQuestion(this)">
+                    </select>
+                
                 <div class="progress-track">
                     <div class="progress-fill" id="quiz-progress-bar" style="width: 0%"></div>
                 </div>
@@ -122,7 +135,7 @@
                 <input type="range" id="age-slider" min="5" max="25" value="12">
             </div>
 
-            <button class="action-btn danger" onclick="resetApp()">Sign Out & Reset All Data</button>
+            <button class="action-btn danger" onclick="resetApp()">Reset Application Data</button>
             <button class="action-btn secondary" onclick="toggleSettings()">Done</button>
         </div>
     </div>
