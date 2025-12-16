@@ -5,7 +5,7 @@ const CONFIG = {
 };
 
 const State = {
-    engine: null, // Singleton instance
+    engine: null, 
     isEngineLoaded: false,
     questions: [],
     currentQIndex: 0,
@@ -25,9 +25,41 @@ const UI = {
     dropZone: document.getElementById('drop-zone')
 };
 
+
+// --- UTILITY: JSON REPAIR FUNCTION (NEW & CRITICAL FIX) ---
+function safelyParseJSON(rawStr) {
+    if (!rawStr) throw new Error("Empty AI response received.");
+
+    // 1. Find the bounds of the JSON array
+    let start = rawStr.indexOf('[');
+    let end = rawStr.lastIndexOf(']') + 1;
+
+    if (start === -1 || end === 0 || end <= start) {
+        throw new Error("AI output lacks valid array markers ([...]).");
+    }
+    
+    let jsonStr = rawStr.substring(start, end);
+
+    // 2. Aggressive Repair for Common LLM Errors
+    try {
+        // Fix 1: Remove trailing commas before a closing bracket or curly brace.
+        // This is the most common cause of the JSON parsing error seen.
+        jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1'); 
+
+        // Fix 2: Remove leading/trailing quotes or backticks if they surround the whole array.
+        jsonStr = jsonStr.trim().replace(/^`+|`+$/g, '');
+
+        return JSON.parse(jsonStr);
+
+    } catch (e) {
+        console.error("Critical JSON Repair Failed:", e);
+        throw new Error(`Syntax error in AI-generated JSON: ${e.message}`);
+    }
+}
+
+
 // --- CORE 1: PDF EXTRACTION ---
 async function extractTextFromPDF(file, onProgress) {
-    // FIX: Prevents "statusCallback is not a function" crash
     const safeProgress = (msg) => typeof onProgress === 'function' ? onProgress(msg) : console.log(msg);
 
     try {
@@ -54,25 +86,25 @@ async function extractTextFromPDF(file, onProgress) {
     }
 }
 
-// --- CORE 2: AI ENGINE (SINGLETON & OPTIMIZED) ---
+// --- CORE 2: AI ENGINE (SINGLETON & OPTIMIZED CLARITY) ---
 async function getAIEngine(onProgress) {
-    // FIX: Singleton pattern prevents slow repeated reloading
     if (State.engine && State.isEngineLoaded) {
+        onProgress("AI Engine ready (Instant Load).", 100);
         return State.engine;
     }
     if (!navigator.gpu) {
-        throw new Error("WebGPU not supported on this browser. Use Chrome/Edge on Desktop/Android.");
+        throw new Error("WebGPU not supported. Use Chrome/Edge on Desktop/Android.");
     }
-    onProgress("Booting GPU Engine...", 10);
+    
+    onProgress("Booting GPU Engine: This is a one-time download for first use.", 10);
 
     const engine = new window.webllm.MLCEngine();
     
-    // FIX: Custom progress handler to show linear progress
     engine.setInitProgressCallback((report) => {
         let percentage = report.progress * 100;
         let text = report.text;
 
-        if (text.includes("Fetching")) text = "Downloading AI Model (Once only)...";
+        if (text.includes("Fetching")) text = "One-Time Download (First Use)...";
         if (text.includes("Loading")) text = "Loading into GPU VRAM...";
         
         onProgress(text, percentage);
@@ -88,40 +120,36 @@ async function getAIEngine(onProgress) {
 async function generateQuestions(topic, text, onProgress) {
     const engine = await getAIEngine(onProgress);
     
-    onProgress("AI is thinking...", 100);
+    UI.loader.style.width = `0%`;
+    onProgress("AI is thinking... (Running on your GPU)", 0); // Status update for thinking
 
     const age = State.settings.age;
+    const contextLimit = 1500;
+    const textContext = text.substring(0, contextLimit);
     
     const prompt = `
-    Context: ${text.substring(0, 3000)}
+    Context: ${textContext}
     Topic: ${topic}
     Create 5 multiple-choice questions for a ${age}-year-old student.
-    Return ONLY a JSON Array.
+    Return ONLY a JSON Array. DO NOT include any text, notes, or explanations before or after the array.
     Format: [{"q": "Question", "opts": ["A","B","C","D"], "a": "Correct Option String", "why": "Explanation"}]
     `;
 
     const response = await engine.chat.completions.create({
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
+        temperature: 0.3, 
     });
 
     const raw = response.choices[0].message.content;
 
-    // FIX: Robust JSON Parsing to find array brackets
     try {
-        const start = raw.indexOf('[');
-        const end = raw.lastIndexOf(']') + 1;
-        
-        if (start === -1 || end === 0) throw new Error("AI did not return an array.");
-        
-        const jsonStr = raw.substring(start, end);
-        return JSON.parse(jsonStr);
+        // Use the new safe parser to handle malformed JSON from the LLM
+        return safelyParseJSON(raw);
     } catch (e) {
-        console.error("JSON Parse Error", e);
+        console.error("Failed to process AI output:", e);
         throw new Error("Failed to parse AI response. Retrying...");
     }
 }
-
 
 // --- CORE 3: PEXELS IMAGE FETCH ---
 async function fetchImageForTopic(topic) {
@@ -160,7 +188,7 @@ async function fetchImageForTopic(topic) {
 // --- CONTROLLER: MAIN LOGIC ---
 async function handleBuild() {
     const file = UI.fileInput.files[0];
-    const topic = UI.topicInput.value.trim(); // FIX: Topic is trimmed and checked
+    const topic = UI.topicInput.value.trim(); 
 
     if (!file) return alert("Please select a PDF file.");
     if (!topic) return alert("Please enter a topic.");
@@ -175,32 +203,37 @@ async function handleBuild() {
     };
 
     try {
-        // 1. PDF
-        const text = await extractTextFromPDF(file, (msg) => updateStatus(msg, 10));
-        
-        // 2. AI
+        // 1. Load AI Engine (Handles download/cache check and initial load)
+        await getAIEngine(updateStatus);
+
+        // 2. PDF 
+        UI.loader.style.width = `0%`;
+        const text = await extractTextFromPDF(file, (msg) => updateStatus(msg, 10)); 
+
+        // 3. AI Inference
         State.questions = await generateQuestions(topic, text, updateStatus);
 
-        // 3. PEXELS IMAGE FETCH
-        updateStatus("Finalizing... Fetching image for Quiz 1");
+        // 4. PEXELS IMAGE FETCH
+        updateStatus("Finalizing... Fetching visual context.");
         const imageUrl = await fetchImageForTopic(topic);
         
         if (State.questions.length > 0) {
             State.questions[0].imageUrl = imageUrl; 
         }
         
-        // 4. Start
+        // 5. Start Quiz
         startQuiz();
 
     } catch (err) {
-        UI.status.innerHTML = `<span style="color:var(--error)">${err.message}</span>`;
+        UI.status.innerHTML = `<span style="color:var(--error)">❌ Error: ${err.message}</span>`;
         UI.loader.style.background = 'var(--error)';
+        console.error("Build Failed:", err);
     } finally {
         UI.btn.disabled = false;
     }
 }
 
-// --- QUIZ FUNCTIONS ---
+// --- QUIZ & UI FUNCTIONS ---
 function startQuiz() {
     document.getElementById('view-hub').classList.add('hidden');
     document.getElementById('view-quiz').classList.remove('hidden-view');
@@ -214,7 +247,6 @@ function renderQuestion() {
     document.getElementById('quiz-progress-bar').style.width = `${((State.currentQIndex) / State.questions.length) * 100}%`;
     document.getElementById('q-text').innerText = q.q;
     
-    // IMAGE RENDERING LOGIC
     const imgContainer = document.getElementById('q-image-container');
     imgContainer.innerHTML = ''; 
 
@@ -278,6 +310,10 @@ window.exitQuiz = () => {
     UI.status.classList.add('hidden');
     UI.loadContainer.classList.add('hidden');
     UI.loader.style.width = '0%';
+    // Clear uploaded file display on exit
+    document.getElementById('file-name').innerText = 'Select PDF Source'; 
+    UI.dropZone.style.borderColor = 'rgba(255,255,255,0.2)';
+    UI.dropZone.style.background = 'transparent';
 };
 
 // --- INIT LISTENERS ---
@@ -300,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.getElementById('username-input').value = State.settings.username;
-    document.getElementById('nav-username').innerText = State.settings.username; // Ensure initial name is displayed
+    document.getElementById('nav-username').innerText = State.settings.username; 
     
     UI.btn.onclick = handleBuild;
 });
@@ -308,11 +344,23 @@ document.addEventListener('DOMContentLoaded', () => {
 window.toggleSettings = () => {
     const m = document.getElementById('settings-modal');
     m.classList.toggle('hidden');
-    if(m.classList.contains('hidden')) {
+    if(!m.classList.contains('hidden')) {
+        // When opening, ensure username slider value is loaded
+        const slider = document.getElementById('age-slider');
+        slider.value = State.settings.age;
+    } else {
+        // When closing, save settings
         State.settings.username = document.getElementById('username-input').value;
         document.getElementById('nav-username').innerText = State.settings.username;
         localStorage.setItem("lumina_user", State.settings.username);
+        // Age is saved in slider.oninput
     }
 };
 
-window.resetApp = () => { localStorage.clear(); location.reload(); };
+window.resetApp = () => { 
+    if (confirm("Are you sure? This will delete all saved settings and cached data (including the AI model weights). You will have to re-download the AI model.")) {
+        localStorage.clear(); 
+        // Force hard reload to clear any residual JS/WebLLM state
+        location.reload(true); 
+    }
+};
