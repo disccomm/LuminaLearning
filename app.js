@@ -1,399 +1,168 @@
-// --- CONFIGURATION & STATE (V31.0 - All Fixes Confirmed) ---
-
-const SELECTED_MODEL = "Phi-3-mini-4k-instruct-q4f16_1-MLC"; 
-
-// PEXELS CONFIG (USER MUST REPLACE THIS KEY)
+// --- CONFIGURATION ---
+const SELECTED_MODEL = "Phi-3-mini-4k-instruct-q4f16_1-MLC";
 const PEXELS_API_KEY = "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM"; 
-const PEXELS_API_KEY_DEFAULT = "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM"; 
 
-// WARNING: This key is exposed in the front-end code.
-
-// App Settings - Loaded from Local Storage
-let isDarkMode = localStorage.getItem('isDarkMode') === 'true';
-let fontSize = localStorage.getItem('fontSize') || 16;
-let userName = localStorage.getItem('userName') || "Student"; 
-
-const KNOWLEDGE_ZONES = {
-    Explorer: { 
-        min: 5, max: 10, 
-        prompt: "You are a teacher for children (ages 5-10). Use simple language. Focus on basic facts." 
-    },
-    Creator: { 
-        min: 11, max: 15, 
-        prompt: "You are a tutor for teenagers. Focus on applying concepts." 
-    },
-    Innovator: { 
-        min: 16, max: 25, 
-        prompt: "You are a professor. Focus on critical analysis and complex synthesis." 
+// State Management
+const State = {
+    db: [],
+    sessionSet: [],
+    currentIndex: 0,
+    extractedText: "",
+    engine: null,
+    settings: {
+        userName: localStorage.getItem('userName') || "Explorer",
+        age: localStorage.getItem('ageRange') || 12
     }
 };
 
-const State = {
-    db: [], // Universal Source of Truth (Generated Questions)
-    sessionSet: [], 
-    currentIndex: 0,
-    seconds: 0,
-    timerInt: null,
-    quizState: [], 
-    engine: null, // Holds WebLLM engine
-    extractedText: "" 
+const KNOWLEDGE_ZONES = {
+    Explorer: { max: 10, prompt: "You are a teacher for kids (5-10). Simple words." },
+    Creator: { max: 15, prompt: "You are a tutor for teens. Focus on concepts." },
+    Innovator: { max: 25, prompt: "You are a professor. High level analysis." }
 };
 
-// --- CORE UTILITIES ---
-function getKnowledgeZone(age) {
-    const ageInt = parseInt(age);
-    if (ageInt >= 16) return 'Innovator';
-    if (ageInt >= 11) return 'Creator';
-    return 'Explorer';
+// --- CORE FUNCTIONS ---
+
+function getZone(age) {
+    if (age <= 10) return 'Explorer';
+    if (age <= 15) return 'Creator';
+    return 'Innovator';
 }
 
-function applyTheme() {
-    document.body.classList.toggle('dark-mode', isDarkMode);
-    document.documentElement.style.setProperty('--base-font-size', `${fontSize}px`);
-
-    const rangeInput = document.getElementById('font-size-range');
-    if (rangeInput) rangeInput.value = fontSize;
-    
-    const darkCheck = document.getElementById('dark-mode-check');
-    if (darkCheck) darkCheck.checked = isDarkMode;
+function updateUI() {
+    document.getElementById('display-name').innerText = State.settings.userName;
+    const zone = getZone(State.settings.age);
+    document.getElementById('age-val').innerText = `${State.settings.age} yrs (${zone})`;
+    document.getElementById('age-range').value = State.settings.age;
 }
 
-/**
- * PDF TEXT EXTRACTION (FIXED statusCallback ISSUE)
- * @param {File} file 
- * @param {Function} statusCallback 
- * @returns {Promise<string>}
- */
+// 1. PDF EXTRACTION (FIXED: Callback handling)
 async function extractTextFromPDF(file, statusCallback) {
     try {
-        if (!window.pdfjsLib) throw new Error("PDF.js library not loaded in index.html");
+        if (!window.pdfjsLib) throw new Error("PDF Lib missing");
         
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = "";
-        const maxPages = Math.min(pdf.numPages, 5); 
+        const maxPages = Math.min(pdf.numPages, 5); // Limit for speed
 
         for (let i = 1; i <= maxPages; i++) {
-            statusCallback(`📄 Reading Page ${i}/${maxPages}...`); 
+            // SAFE CALL: Check if callback exists and is a function
+            if (typeof statusCallback === 'function') {
+                statusCallback(`📄 Scanning Page ${i}/${maxPages}...`);
+            }
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(" ");
-            fullText += `[Page ${i}] ${pageText}\n`;
+            fullText += textContent.items.map(item => item.str).join(" ") + " ";
         }
         return fullText;
     } catch (e) {
-        console.error("PDF Read Error:", e);
-        throw new Error("Could not read PDF. Make sure it is a text PDF (not scanned).");
+        console.error(e);
+        throw new Error("Cannot read PDF. Is it text-based?");
     }
 }
 
-// --- PEXELS IMAGE UTILITY ---
-async function getPexelsImage(query) {
-    if (PEXELS_API_KEY === "YOUR_PEXELS_API_KEY_HERE") {
-        console.warn("Pexels API key not set. Skipping image fetch.");
-        return null;
-    }
-
-    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`;
-    
-    try {
-        const response = await fetch(url, {
-            headers: { 'Authorization': PEXELS_API_KEY }
-        });
-
-        if (!response.ok) {
-            console.error(`Pexels API Error: ${response.status} ${response.statusText}`);
-            return null;
-        }
-
-        const data = await response.json();
-
-        if (data.photos.length > 0) {
-            return data.photos[0].src.medium; 
-        }
-        return null;
-    } catch (error) {
-        console.error("Pexels API fetch failed:", error);
-        return null;
-    }
-}
-
-
-// --- AI ENGINE (WebLLM - Zero Fee) ---
+// 2. AI ENGINE & GENERATION
 async function initializeEngine(statusCallback) {
     if (State.engine) return State.engine;
+    if (!window.webllm) throw new Error("WebLLM missing");
 
-    if (!window.webllm) {
-        throw new Error("WebLLM library not loaded. Check index.html script tags.");
-    }
-
-    statusCallback("📥 Downloading AI Model (This happens once)...");
-    
+    statusCallback("🧠 Waking up AI (One-time load)...");
     const engine = new window.webllm.MLCEngine();
     engine.setInitProgressCallback((report) => {
-        statusCallback(`📥 Loading AI: ${Math.ceil(report.progress * 100)}%`);
+        statusCallback(`📥 Loading AI Model: ${Math.ceil(report.progress * 100)}%`);
     });
-    
     await engine.reload(SELECTED_MODEL);
     State.engine = engine;
     return engine;
 }
 
-async function AIExtractionService(topic, aiStatus) {
-    const engine = await initializeEngine(aiStatus);
+async function generateQuestions(topic, context, aiStatusCallback) {
+    const engine = await initializeEngine(aiStatusCallback);
     
-    const imagePromise = getPexelsImage(topic);
-    
-    const age = localStorage.getItem('ageRange') || 10;
-    const zone = getKnowledgeZone(age);
-    const context = State.extractedText.substring(0, 4000); 
+    // Pexels Fetch (Silent)
+    let imageUrl = null;
+    if (PEXELS_API_KEY !== "YOUR_PEXELS_API_KEY_HERE") {
+        try {
+            const pexRes = await fetch(`https://api.pexels.com/v1/search?query=${topic}&per_page=1`, {
+                headers: { Authorization: PEXELS_API_KEY }
+            });
+            const pexData = await pexRes.json();
+            if (pexData.photos && pexData.photos.length > 0) imageUrl = pexData.photos[0].src.medium;
+        } catch (e) { console.log("Image fetch failed"); }
+    }
 
+    const zone = getZone(State.settings.age);
     const systemPrompt = `
         ${KNOWLEDGE_ZONES[zone].prompt}
-        Task: Create 5 multiple-choice questions based on the Context.
-        Format: ONLY valid JSON array. No text before/after.
-        Example: [{"question":"?","options":["A","B","C","D"],"correct":"A", "explanation": "..."}]
+        Context: ${context.substring(0, 3000)}
+        Task: Generate 5 multiple choice questions in strictly valid JSON format.
+        Format: [{"question":"...","options":["A","B","C","D"],"correct":"A","explanation":"..."}]
     `;
 
-    const userPrompt = `Topic: ${topic}\nContext: ${context}\n\nGenerate 5 questions now.`;
-
-    aiStatus.innerText = "🧠 AI is thinking... (10-30s on first run)";
+    aiStatusCallback("✨ Dreaming up questions...");
     
-    try {
-        const response = await engine.chat.completions.create({
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
-            ],
-            temperature: 0.5,
-            max_tokens: 1500,
-        });
+    const response = await engine.chat.completions.create({
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `Topic: ${topic}. Go.` }],
+        temperature: 0.6,
+    });
 
-        const raw = response.choices[0].message.content;
-        const start = raw.indexOf('[');
-        const end = raw.lastIndexOf(']');
-        
-        if (start === -1 || end === -1) throw new Error("AI did not return a valid JSON list.");
-        
-        const jsonStr = raw.substring(start, end + 1);
-        const questions = JSON.parse(jsonStr);
-        
-        const imageUrl = await imagePromise;
-
-        const finalQuestions = questions.map((q, i) => {
-            const question = {
-                id: `gen-${i}`,
-                question: q.question,
-                options: q.options,
-                correct: q.correct,
-                explanation: q.explanation || "Correct answer derived from document.",
-                question_topic: topic
-            };
-            if (i === 0 && imageUrl) {
-                question.imageUrl = imageUrl;
-            }
-            return question;
-        });
-        
-        return finalQuestions;
-
-    } catch (e) {
-        console.error("AI Generation Failed:", e);
-        return [{ question: "AI Failed to Generate. Re-run after confirming context.", options: ["A", "B", "C", "D"], correct: "A", explanation: "Fallback error." }];
-    }
+    const raw = response.choices[0].message.content;
+    const jsonMatch = raw.match(/\[.*\]/s);
+    if (!jsonMatch) throw new Error("AI output invalid.");
+    
+    const questions = JSON.parse(jsonMatch[0]);
+    
+    // Attach image to first question
+    if (imageUrl && questions.length > 0) questions[0].imageUrl = imageUrl;
+    
+    return questions;
 }
 
+// --- CONTROLLERS ---
 
-// --- MAIN WORKFLOW (CRITICAL FIX: Correctly pass statusCallback) ---
-async function processAndLoad() {
+async function handleBuildLibrary() {
     const topic = document.getElementById('topic-name').value;
     const fileInput = document.getElementById('pdf-file');
-    const aiStatus = document.getElementById('ai-status');
+    const statusEl = document.getElementById('ai-status');
     const btn = document.getElementById('build-library-btn');
-
+    
     if (!topic || !fileInput.files[0]) {
-        openConfirmationModal("Missing Input", "Please enter a Topic Name and select a PDF file.", closeModal);
+        alert("Please enter a topic and select a PDF.");
         return;
     }
 
     btn.disabled = true;
-    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
     try {
-        // CRITICAL FIX: Ensure the callback is a function that updates the innerText
-        State.extractedText = await extractTextFromPDF(fileInput.files[0], (msg) => {
-            aiStatus.innerText = msg;
+        // STEP 1: READ PDF
+        // CRITICAL FIX: Passing an ARROW FUNCTION, not a string assignment
+        const text = await extractTextFromPDF(fileInput.files[0], (msg) => {
+            statusEl.innerHTML = `<i class="fas fa-sync fa-spin"></i> ${msg}`;
         });
-        
-        State.db = await AIExtractionService(topic, aiStatus);
-        
-        aiStatus.innerText = `✅ Success! ${State.db.length} Questions Ready.`;
-        
-        document.getElementById('action-tiles').querySelectorAll('.action-tile').forEach(t => t.classList.add('active'));
-        
-    } catch (error) {
-        aiStatus.innerText = `❌ Error: ${error.message}`;
-        State.db = []; 
+
+        // STEP 2: GENERATE
+        State.db = await generateQuestions(topic, text, (msg) => {
+            statusEl.innerHTML = `<i class="fas fa-magic fa-spin"></i> ${msg}`;
+        });
+
+        // SUCCESS
+        statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Library Ready (${State.db.length} Qs)`;
+        document.querySelectorAll('.mode-card').forEach(c => c.classList.add('active'));
+
+    } catch (e) {
+        statusEl.innerHTML = `<span style="color:var(--error)"><i class="fas fa-exclamation-triangle"></i> ${e.message}</span>`;
+        console.error(e);
     } finally {
         btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic"></i> Build My Library';
     }
 }
 
-// --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
-    applyTheme();
-
-    const welcomeEl = document.querySelector('header h4'); 
-    if (welcomeEl) {
-        welcomeEl.innerHTML = `Welcome back, <br><span style="font-size:1.2em; color:var(--primary-color);">${userName}</span>`;
-    }
-
-    // Fix: Level Slider Binding
-    const ageRange = document.getElementById('age-range');
-    const ageVal = document.getElementById('age-val');
-    
-    if (ageRange && ageVal) { 
-        const currentAge = localStorage.getItem('ageRange') || 12;
-        ageRange.value = currentAge;
-        ageVal.innerText = `${currentAge} yrs (${getKnowledgeZone(currentAge)})`;
-        
-        ageRange.addEventListener('input', (e) => {
-            const val = e.target.value;
-            ageVal.innerText = `${val} yrs (${getKnowledgeZone(val)})`;
-            localStorage.setItem('ageRange', val);
-        });
-    }
-
-    // Bind PDF Name Display (FIX: Ensure file name is persistent on change)
-    const pdfFile = document.getElementById('pdf-file');
-    const fileStatus = document.getElementById('file-status');
-    if (pdfFile && fileStatus) {
-        // Set initial status
-        fileStatus.innerText = "Tap to Upload PDF"; 
-
-        pdfFile.addEventListener('change', (e) => {
-            const fileName = e.target.files.length > 0 ? e.target.files[0].name : "Tap to Upload PDF";
-            fileStatus.innerText = fileName; // Display the name
-            document.getElementById('ai-status').innerText = "Ready to Analyze.";
-        });
-    }
-
-    const buildButton = document.getElementById('build-library-btn');
-    if (buildButton) {
-        buildButton.onclick = processAndLoad;
-    }
-});
-
-
-// --- MODAL UTILITIES ---
-
-function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
-}
-
-/**
- * Universal modal function for confirmations and custom alerts.
- */
-function openConfirmationModal(title, message, onConfirm, isConfirmation = false) {
-    const modal = document.getElementById('modal-overlay');
-    const body = document.getElementById('modal-body');
-    const modalTitle = document.getElementById('modal-title');
-    
-    modalTitle.innerText = title;
-    
-    let buttonsHtml = '';
-    
-    const wrapperFunction = () => { onConfirm(); closeModal(); };
-    window.tempConfirmAction = wrapperFunction;
-
-    if (isConfirmation) {
-        buttonsHtml = `
-            <button class="danger-btn" style="margin-right: 10px; width: 48%;" onclick="tempConfirmAction()">
-                Yes, Continue
-            </button>
-            <button class="close-btn" style="width: 48%;" onclick="closeModal()">
-                Cancel
-            </button>
-        `;
-    } else {
-        buttonsHtml = `
-            <button class="primary-btn" onclick="tempConfirmAction()">
-                OK
-            </button>
-        `;
-    }
-
-    body.innerHTML = `
-        <p>${message}</p>
-        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
-            ${buttonsHtml}
-        </div>
-    `;
-
-    modal.classList.remove('hidden');
-}
-
-
-// --- SETTINGS LOGIC ---
-function openSettingsModal() {
-    const modal = document.getElementById('modal-overlay');
-    const body = document.getElementById('modal-body');
-    const title = document.getElementById('modal-title');
-    
-    title.innerText = "Settings";
-    
-    // Settings body content
-    body.innerHTML = `
-        <div class="input-group">
-            <label>Dark Mode</label>
-            <input type="checkbox" id="dark-mode-check" 
-                onchange="isDarkMode = this.checked; localStorage.setItem('isDarkMode', this.checked); applyTheme();" 
-                ${isDarkMode ? 'checked' : ''}>
-        </div>
-        
-        <div class="input-group" style="display:block;">
-            <label>Font Size</label>
-            <input id="font-size-range" type="range" min="12" max="24" value="${fontSize}" 
-                oninput="fontSize = this.value; localStorage.setItem('fontSize', this.value); applyTheme();">
-            <div style="text-align:right; font-size:0.8rem; color:var(--primary-color);">Drag to resize</div>
-        </div>
-
-        <button class="close-btn" onclick="closeModal()">
-            Done
-        </button>
-
-        <button class="danger-btn" onclick="openSignOutConfirmation()">
-            Sign Out & Reset Data
-        </button>
-    `;
-    modal.classList.remove('hidden');
-    applyTheme(); 
-}
-
-function openSignOutConfirmation() {
-    closeModal();
-    openConfirmationModal(
-        "Reset App", 
-        "Are you sure you want to sign out? This will permanently delete all saved settings and generated questions.", 
-        signOut, 
-        true 
-    );
-}
-
-function signOut() {
-    localStorage.clear();
-    location.reload();
-}
-
-
-// --- QUIZ & UI NAVIGATION ---
 function startQuiz() {
-    if (State.db.length === 0) {
-        openConfirmationModal("No Library Loaded", "Please load your library by clicking 'Build My Library' first!", closeModal);
-        return;
-    }
-    
-    State.sessionSet = [...State.db]; 
-    State.quizState = State.sessionSet.map(() => ({ answer: null, isCorrect: null }));
+    if (!State.db.length) return;
+    State.sessionSet = [...State.db];
     State.currentIndex = 0;
     
     switchView('quiz-view');
@@ -402,44 +171,51 @@ function startQuiz() {
 
 function renderQuestion() {
     const q = State.sessionSet[State.currentIndex];
-    const sq = State.quizState[State.currentIndex];
+    const total = State.sessionSet.length;
     
-    const imageHtml = q.imageUrl ? 
-        `<img src="${q.imageUrl}" alt="Visual aid for ${q.question_topic}" 
-             style="width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 15px;">
-        <p style="font-size:0.75rem; text-align:right; margin-top:-10px; color:var(--text-color); opacity:0.7;">Image via Pexels</p>`
-        : '';
+    document.getElementById('q-counter').innerText = `${State.currentIndex + 1}/${total}`;
+    document.getElementById('quiz-progress').style.width = `${((State.currentIndex) / total) * 100}%`;
     
-    document.getElementById('quiz-content').innerHTML = `
-        <div class="glass-panel">
-            <h3>Question ${State.currentIndex + 1} of ${State.sessionSet.length}</h3>
-            ${imageHtml}
-            <p style="font-size:1.1rem; margin-bottom:20px;">${q.question}</p>
-            <div class="options-list">
+    let html = `
+        <div class="glass-card">
+            ${q.imageUrl ? `<img src="${q.imageUrl}" />` : ''}
+            <h3 style="font-size: 1.2rem; margin-bottom: 20px;">${q.question}</h3>
+            <div class="options-grid">
                 ${q.options.map(opt => `
-                    <button class="opt-btn ${sq.answer === opt ? (sq.isCorrect ? 'right' : 'wrong') : ''}" 
-                            onclick="selectAnswer('${opt.replace(/'/g, "\\'")}')" 
-                            ${sq.isCorrect !== null ? 'disabled' : ''}>
+                    <button class="opt-btn" onclick="checkAnswer(this, '${opt.replace(/'/g, "\\'")}', '${q.correct.replace(/'/g, "\\'")}')">
                         ${opt}
                     </button>
                 `).join('')}
             </div>
-             ${sq.isCorrect !== null ? `<p style="margin-top:10px; color:var(--text-color);"><em>${q.explanation}</em></p>` : ''}
+            <div id="explanation" class="hidden" style="margin-top:15px; padding:10px; background:rgba(255,255,255,0.1); border-radius:8px;">
+                <small>💡 ${q.explanation}</small>
+            </div>
         </div>
     `;
     
-    document.getElementById('next-btn').disabled = (sq.isCorrect === null);
+    document.getElementById('quiz-content').innerHTML = html;
+    document.getElementById('next-btn').disabled = true;
 }
 
-function selectAnswer(choice) {
-    const sq = State.quizState[State.currentIndex];
-    const q = State.sessionSet[State.currentIndex];
+window.checkAnswer = function(btn, selected, correct) {
+    const parent = btn.parentElement;
+    const allBtns = parent.querySelectorAll('.opt-btn');
     
-    if (sq.answer) return;
-
-    sq.answer = choice;
-    sq.isCorrect = (choice === q.correct);
-    renderQuestion();
+    allBtns.forEach(b => b.disabled = true); // Lock all
+    
+    if (selected === correct) {
+        btn.classList.add('correct');
+        // Play sound effect could go here
+    } else {
+        btn.classList.add('wrong');
+        // Highlight correct one
+        allBtns.forEach(b => {
+            if (b.innerText.includes(correct)) b.classList.add('correct');
+        });
+    }
+    
+    document.getElementById('explanation').classList.remove('hidden');
+    document.getElementById('next-btn').disabled = false;
 }
 
 function handleNext() {
@@ -447,21 +223,71 @@ function handleNext() {
         State.currentIndex++;
         renderQuestion();
     } else {
-        openConfirmationModal("Quiz Complete", "You have finished all questions! Returning to the main hub.", () => switchView('hub-view'));
+        openModal("🎉 Quiz Complete!", `<p>You finished the set!</p><button class="cta-btn primary" onclick="closeModal(); switchView('hub-view')">Back to Hub</button>`);
     }
 }
 
+// --- EVENT LISTENERS & INIT ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateUI();
+    
+    // Fix: File Input Persistence
+    const fileInput = document.getElementById('pdf-file');
+    const label = document.getElementById('file-status');
+    const zone = document.getElementById('upload-zone');
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            label.innerText = e.target.files[0].name; // Set name
+            zone.style.borderColor = '#00b09b';
+            zone.style.background = 'rgba(0, 176, 155, 0.1)';
+        }
+    });
+
+    // Slider Logic
+    document.getElementById('age-range').addEventListener('input', (e) => {
+        State.settings.age = e.target.value;
+        localStorage.setItem('ageRange', e.target.value);
+        updateUI();
+    });
+
+    document.getElementById('build-library-btn').onclick = handleBuildLibrary;
+});
+
+// Navigation
 function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(id).classList.add('active');
 }
 
-function openExitConfirmation() {
-    openConfirmationModal(
-        "Exit Quiz", 
-        "Are you sure you want to exit? Your current quiz progress will be lost.", 
-        () => switchView('hub-view'),
-        true
-    );
+// Modal Logic
+window.openSettingsModal = function() {
+    openModal("Settings", `
+        <div class="input-group">
+            <label>User Name</label>
+            <input type="text" value="${State.settings.userName}" onchange="State.settings.userName=this.value; localStorage.setItem('userName', this.value); updateUI()">
+        </div>
+        <button class="cta-btn secondary" onclick="localStorage.clear(); location.reload();" style="border-color:var(--error); color:var(--error)">Reset App Data</button>
+    `);
 }
 
+window.openExitConfirmation = function() {
+    openModal("Exit Quiz?", `
+        <p>Progress will be lost.</p>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="cta-btn secondary" onclick="closeModal()">Cancel</button>
+            <button class="cta-btn primary" onclick="closeModal(); switchView('hub-view')">Exit</button>
+        </div>
+    `);
+}
+
+function openModal(title, content) {
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-body').innerHTML = content;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+window.closeModal = function() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+}
