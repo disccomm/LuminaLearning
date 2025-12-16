@@ -77,9 +77,8 @@
 
         <div id="quiz-view" class="view">
             <header>
-                <button onclick="openExitConfirmation()" class="settings-btn" style="opacity: 1; font-size: 1rem;"><i class="fas fa-times"></i> Exit X</button>
-                <button class="settings-btn" disabled><i class="fas fa-pause"></i> Pause</button>
-            </header>
+                <button onclick="openExitConfirmation()" class="settings-btn" style="opacity: 1; font-size: 1rem;"><i class="fas fa-times"></i> Exit</button>
+                </header>
             
             <div id="quiz-content">
                 </div>
@@ -94,7 +93,7 @@
     <div id="modal-overlay" class="modal-overlay hidden">
         <div class="modal-content">
             <h2 id="modal-title">Settings</h2>
-            <button class="close-btn" style="position: absolute; top: 15px; right: 15px; width: auto; background: none; border: none;" onclick="document.getElementById('modal-overlay').classList.add('hidden')">
+            <button class="close-btn" style="position: absolute; top: 15px; right: 15px; width: auto; background: none; border: none;" onclick="closeModal()">
                 <i class="fas fa-times" style="font-size: 1.5rem;"></i>
             </button>
             

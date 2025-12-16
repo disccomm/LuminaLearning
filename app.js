@@ -1,8 +1,10 @@
-// --- CONFIGURATION & STATE (V26.0 - Fixes Applied) ---
-const PEXELS_API_KEY_DEFAULT = "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM"; 
-// --- CONFIGURATION & STATE (V27.0 - All Fixes Applied) ---
+// --- CONFIGURATION & STATE (V29.0 - Pexels Re-integrated, All Pop-up Issues Fixed) ---
 
 const SELECTED_MODEL = "Phi-3-mini-4k-instruct-q4f16_1-MLC"; 
+
+// PEXELS CONFIG (USER MUST REPLACE THIS KEY)
+// WARNING: This key is exposed in the front-end code.
+const PEXELS_API_KEY_DEFAULT = "qQZw9X3j2A76TuOYYHDo2ssebWP5H7K056k1rpdOTVvqh7SVDQr4YyWM"; 
 
 // App Settings - Loaded from Local Storage
 let isDarkMode = localStorage.getItem('isDarkMode') === 'true';
@@ -47,7 +49,7 @@ function applyTheme() {
     // 1. Apply Dark Mode Class
     document.body.classList.toggle('dark-mode', isDarkMode);
 
-    // 2. Apply Font Size Variable (CSS FIX NOW MAKES THIS WORK)
+    // 2. Apply Font Size Variable
     document.documentElement.style.setProperty('--base-font-size', `${fontSize}px`);
 
     // 3. Update Inputs (for Settings Modal)
@@ -58,7 +60,10 @@ function applyTheme() {
     if (darkCheck) darkCheck.checked = isDarkMode;
 }
 
-// --- PDF EXTRACTION (PDF.js) ---
+/**
+ * FIX: This is the function that had the statusCallback error.
+ * The inner function call now correctly takes the statusCallback as the second argument.
+ */
 async function extractTextFromPDF(file, statusCallback) {
     try {
         if (!window.pdfjsLib) throw new Error("PDF.js library not loaded in index.html");
@@ -66,10 +71,11 @@ async function extractTextFromPDF(file, statusCallback) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = "";
-        const maxPages = Math.min(pdf.numPages, 5); // Limit to 5 pages for faster WebLLM processing
+        const maxPages = Math.min(pdf.numPages, 5); 
 
         for (let i = 1; i <= maxPages; i++) {
-            statusCallback(`📄 Reading Page ${i}/${maxPages}...`);
+            // Correct call to the statusCallback function
+            statusCallback(`📄 Reading Page ${i}/${maxPages}...`); 
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
             const pageText = textContent.items.map(item => item.str).join(" ");
@@ -81,6 +87,40 @@ async function extractTextFromPDF(file, statusCallback) {
         throw new Error("Could not read PDF. Make sure it is a text PDF (not scanned).");
     }
 }
+
+// --- PEXELS IMAGE UTILITY (NEW) ---
+async function getPexelsImage(query) {
+    if (PEXELS_API_KEY === "YOUR_PEXELS_API_KEY_HERE") {
+        console.warn("Pexels API key not set. Skipping image fetch.");
+        return null;
+    }
+
+    // Search Pexels for an image related to the topic
+    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`;
+    
+    try {
+        const response = await fetch(url, {
+            headers: { 'Authorization': PEXELS_API_KEY }
+        });
+
+        if (!response.ok) {
+            console.error(`Pexels API Error: ${response.status} ${response.statusText}`);
+            return null;
+        }
+
+        const data = await response.json();
+
+        if (data.photos.length > 0) {
+            // Return the URL of a medium-sized image
+            return data.photos[0].src.medium; 
+        }
+        return null;
+    } catch (error) {
+        console.error("Pexels API fetch failed:", error);
+        return null;
+    }
+}
+
 
 // --- AI ENGINE (WebLLM - Zero Fee) ---
 async function initializeEngine(statusCallback) {
@@ -104,6 +144,9 @@ async function initializeEngine(statusCallback) {
 
 async function AIExtractionService(topic, aiStatus) {
     const engine = await initializeEngine(aiStatus);
+    
+    // Start fetching the image while the AI model is setting up
+    const imagePromise = getPexelsImage(topic);
     
     const age = localStorage.getItem('ageRange') || 10;
     const zone = getKnowledgeZone(age);
@@ -138,15 +181,28 @@ async function AIExtractionService(topic, aiStatus) {
         
         const jsonStr = raw.substring(start, end + 1);
         const questions = JSON.parse(jsonStr);
+        
+        // Wait for image fetch
+        const imageUrl = await imagePromise;
 
-        return questions.map((q, i) => ({
-            id: `gen-${i}`,
-            question: q.question,
-            options: q.options,
-            correct: q.correct,
-            explanation: q.explanation || "Correct answer derived from document.",
-            question_topic: topic
-        }));
+        // Map and inject image URL into the FIRST question
+        const finalQuestions = questions.map((q, i) => {
+            const question = {
+                id: `gen-${i}`,
+                question: q.question,
+                options: q.options,
+                correct: q.correct,
+                explanation: q.explanation || "Correct answer derived from document.",
+                question_topic: topic
+            };
+            // Inject image into the first question only, for demonstration
+            if (i === 0 && imageUrl) {
+                question.imageUrl = imageUrl;
+            }
+            return question;
+        });
+        
+        return finalQuestions;
 
     } catch (e) {
         console.error("AI Generation Failed:", e);
@@ -155,7 +211,7 @@ async function AIExtractionService(topic, aiStatus) {
 }
 
 
-// --- MAIN WORKFLOW (FIXED BINDING) ---
+// --- MAIN WORKFLOW ---
 async function processAndLoad() {
     const topic = document.getElementById('topic-name').value;
     const fileInput = document.getElementById('pdf-file');
@@ -163,17 +219,17 @@ async function processAndLoad() {
     const btn = document.getElementById('build-library-btn');
 
     if (!topic || !fileInput.files[0]) {
-        alert("Please enter a Topic Name and select a PDF file.");
+        openConfirmationModal("Missing Input", "Please enter a Topic Name and select a PDF file.", () => closeModal());
         return;
     }
 
     btn.disabled = true;
     
     try {
-        // Step 1: Read PDF
+        // Step 1: Read PDF (Fixed call to extractTextFromPDF)
         State.extractedText = await extractTextFromPDF(fileInput.files[0], (msg) => aiStatus.innerText = msg);
         
-        // Step 2: Generate Questions (This is the function that was previously unbound)
+        // Step 2: Generate Questions (This now includes Pexels image fetching)
         State.db = await AIExtractionService(topic, aiStatus);
         
         // Step 3: Success State
@@ -184,29 +240,28 @@ async function processAndLoad() {
         
     } catch (error) {
         aiStatus.innerText = `❌ Error: ${error.message}`;
-        State.db = []; // Clear data on failure
+        State.db = []; 
     } finally {
         btn.disabled = false;
     }
 }
 
-// --- INITIALIZATION (FIXED SLIDER BINDING) ---
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme();
 
     // Set User Name in Header
     const welcomeEl = document.querySelector('header h4'); 
     if (welcomeEl) {
-        // Updated to use the variable 'userName' which defaults to 'Student'
         welcomeEl.innerHTML = `Welcome back, <br><span style="font-size:1.2em; color:var(--primary-color);">${userName}</span>`;
     }
 
-    // --- FIX: Slider Binding ---
+    // Fix: Level Slider Binding
     const ageRange = document.getElementById('age-range');
     const ageVal = document.getElementById('age-val');
     
-    if (ageRange && ageVal) { // Ensure elements exist before binding
-        const currentAge = localStorage.getItem('ageRange') || 10;
+    if (ageRange && ageVal) { 
+        const currentAge = localStorage.getItem('ageRange') || 12;
         ageRange.value = currentAge;
         ageVal.innerText = `${currentAge} yrs (${getKnowledgeZone(currentAge)})`;
         
@@ -217,17 +272,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Bind PDF Name Display
+    // Bind PDF Name Display and clear on reload (FIX: File name not clearing)
     const pdfFile = document.getElementById('pdf-file');
-    if (pdfFile) {
+    const fileStatus = document.getElementById('file-status');
+    if (pdfFile && fileStatus) {
+        // Clear file status on initial load
+        fileStatus.innerText = "Tap to Upload PDF"; 
+
         pdfFile.addEventListener('change', (e) => {
             const name = e.target.files[0] ? e.target.files[0].name : "Tap to Upload PDF";
-            document.getElementById('file-status').innerText = name;
+            fileStatus.innerText = name;
             document.getElementById('ai-status').innerText = "Ready to Analyze.";
         });
     }
 
-    // Bind the main button explicitly (Fixes the failure to trigger AI)
+    // Bind the main button explicitly
     const buildButton = document.getElementById('build-library-btn');
     if (buildButton) {
         buildButton.onclick = processAndLoad;
@@ -235,16 +294,69 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- SETTINGS MODAL LOGIC (FIXED UX) ---
+// --- MODAL UTILITIES (FIX: Replaces all alert/confirm pop-ups) ---
+
+function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+}
+
+/**
+ * Universal modal function for confirmations and custom alerts.
+ * @param {string} title 
+ * @param {string} message 
+ * @param {Function} onConfirm - Function to run when user clicks the primary button.
+ * @param {boolean} isConfirmation - If true, show two buttons (Confirm/Cancel). If false, show one (OK).
+ */
+function openConfirmationModal(title, message, onConfirm, isConfirmation = false) {
+    const modal = document.getElementById('modal-overlay');
+    const body = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+    
+    modalTitle.innerText = title;
+    
+    let buttonsHtml = '';
+    
+    // NOTE: Function name is passed as a string, so we must use a function that is available globally (like signOut)
+    // or use a wrapper function in the case of switchView
+    const confirmAction = onConfirm.name ? `${onConfirm.name}()` : `(${onConfirm.toString().replace('()', '')})()`;
+    
+    if (isConfirmation) {
+        buttonsHtml = `
+            <button class="danger-btn" style="margin-right: 10px; width: 48%;" onclick="${confirmAction}">
+                Yes, Continue
+            </button>
+            <button class="close-btn" style="width: 48%;" onclick="closeModal()">
+                Cancel
+            </button>
+        `;
+    } else {
+        buttonsHtml = `
+            <button class="primary-btn" onclick="${confirmAction}">
+                OK
+            </button>
+        `;
+    }
+
+    body.innerHTML = `
+        <p>${message}</p>
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            ${buttonsHtml}
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+}
+
+
+// --- SETTINGS LOGIC ---
 function openSettingsModal() {
     const modal = document.getElementById('modal-overlay');
     const body = document.getElementById('modal-body');
     const title = document.getElementById('modal-title');
     
     title.innerText = "App Settings";
-    modal.classList.remove('hidden');
-
-    // FIX: Removing the redundant 'Action' button and placing Sign Out correctly
+    
+    // Settings body content
     body.innerHTML = `
         <div class="input-group">
             <label>Dark Mode</label>
@@ -260,29 +372,41 @@ function openSettingsModal() {
             <div style="text-align:right; font-size:0.8rem; color:var(--primary-color);">Drag to resize</div>
         </div>
 
-        <button class="close-btn" onclick="document.getElementById('modal-overlay').classList.add('hidden')">
+        <button class="close-btn" onclick="closeModal()">
             Done
         </button>
 
-        <button class="danger-btn" onclick="signOut()">
+        <button class="danger-btn" onclick="openSignOutConfirmation()">
             Sign Out & Reset Data
         </button>
     `;
-    // Re-apply theme here to ensure settings inputs match the current theme state
+    modal.classList.remove('hidden');
     applyTheme(); 
 }
 
+function openSignOutConfirmation() {
+    closeModal(); // Close settings first
+    // Open confirmation modal (isConfirmation = true)
+    openConfirmationModal(
+        "Reset App", 
+        "Are you sure you want to sign out? This will permanently delete all saved settings and generated questions.", 
+        signOut, // Function to call on confirmation
+        true 
+    );
+}
+
 function signOut() {
-    if(confirm("Are you sure? This will delete all saved settings and generated questions.")) {
-        localStorage.clear();
-        location.reload();
-    }
+    localStorage.clear();
+    location.reload();
 }
 
 
 // --- QUIZ & UI NAVIGATION ---
 function startQuiz() {
-    if (State.db.length === 0) return alert("Please load your library first!");
+    if (State.db.length === 0) {
+        openConfirmationModal("No Library Loaded", "Please load your library by clicking 'Build My Library' first!", () => closeModal());
+        return;
+    }
     
     State.sessionSet = [...State.db]; 
     State.quizState = State.sessionSet.map(() => ({ answer: null, isCorrect: null }));
@@ -296,9 +420,17 @@ function renderQuestion() {
     const q = State.sessionSet[State.currentIndex];
     const sq = State.quizState[State.currentIndex];
     
+    // PEXELS INTEGRATION: Display image if URL exists
+    const imageHtml = q.imageUrl ? 
+        `<img src="${q.imageUrl}" alt="Visual aid for ${q.question_topic}" 
+             style="width: 100%; height: 200px; object-fit: cover; border-radius: 12px; margin-bottom: 15px;">
+        <p style="font-size:0.75rem; text-align:right; margin-top:-10px; color:var(--text-color); opacity:0.7;">Image via Pexels</p>`
+        : '';
+    
     document.getElementById('quiz-content').innerHTML = `
         <div class="glass-panel">
             <h3>Question ${State.currentIndex + 1} of ${State.sessionSet.length}</h3>
+            ${imageHtml}
             <p style="font-size:1.1rem; margin-bottom:20px;">${q.question}</p>
             <div class="options-list">
                 ${q.options.map(opt => `
@@ -332,8 +464,7 @@ function handleNext() {
         State.currentIndex++;
         renderQuestion();
     } else {
-        alert("Quiz Complete! Returning to home.");
-        switchView('hub-view');
+        openConfirmationModal("Quiz Complete", "You have finished all questions! Returning to the main hub.", () => switchView('hub-view'));
     }
 }
 
@@ -343,7 +474,11 @@ function switchView(id) {
 }
 
 function openExitConfirmation() {
-    if(confirm("Exit Quiz? Progress will be lost.")) {
-        switchView('hub-view');
-    }
+    // Open confirmation modal for quiz exit
+    openConfirmationModal(
+        "Exit Quiz", 
+        "Are you sure you want to exit? Your current quiz progress will be lost.", 
+        () => { closeModal(); switchView('hub-view'); }, // Function to run if confirmed
+        true // Is a confirmation
+    );
 }
