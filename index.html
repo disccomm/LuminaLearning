@@ -4,8 +4,376 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lumina Learning Hub</title>
+// --- CONFIGURATION & STATE (V25.1 - REAL AI INTEGRATION) ---
+const PEXELS_API_KEY_DEFAULT = "ADD_YOUR_KEY_HERE"; 
+let PEXELS_API_KEY = localStorage.getItem('pexelsKey') || PEXELS_API_KEY_DEFAULT; 
+
+// CONFIG: Model Selection
+// 'Llama-3-8B-Instruct-q4f16_1-MLC' is powerful but large (5GB+). 
+// 'Phi-3-mini-4k-instruct-q4f16_1-MLC' is faster and lighter (2GB) - Recommended for generic laptops/phones.
+const SELECTED_MODEL = "Phi-3-mini-4k-instruct-q4f16_1-MLC"; 
+
+let isDarkMode = localStorage.getItem('isDarkMode') === 'true';
+let fontSize = localStorage.getItem('fontSize') || 16;
+
+const KNOWLEDGE_ZONES = {
+    Explorer: { 
+        min: 5, max: 10, 
+        prompt: "You are a teacher for children (ages 5-10). Use simple language, short sentences, and fun analogies. Focus on basic facts." 
+    },
+    Creator: { 
+        min: 11, max: 15, 
+        prompt: "You are a tutor for teenagers (ages 11-15). Use moderate vocabulary. Focus on applying concepts and understanding 'how' things work." 
+    },
+    Innovator: { 
+        min: 16, max: 25, 
+        prompt: "You are a professor for adults/students (ages 16+). Use academic language. Focus on critical analysis, complex relationships, and synthesis." 
+    }
+};
+
+const State = {
+    db: [], 
+    sessionSet: [], 
+    currentIndex: 0,
+    seconds: 0,
+    timerInt: null,
+    quizState: [], 
+    engine: null, // Holds the WebLLM engine instance
+    extractedText: "" // Holds text read from PDF
+};
+
+// --- CORE UTILITIES ---
+function getKnowledgeZone(age) {
+    const ageInt = parseInt(age);
+    if (ageInt >= 16) return 'Innovator';
+    if (ageInt >= 11) return 'Creator';
+    return 'Explorer';
+}
+
+function applyTheme() {
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    document.documentElement.style.setProperty('--base-font-size', `${fontSize}px`);
+    
+    // Sync UI elements if they exist
+    const rangeInput = document.getElementById('font-size-range');
+    if(rangeInput) rangeInput.value = fontSize;
+}
+
+// --- REAL PDF TEXT EXTRACTION (Uses pdf.js) ---
+async function extractTextFromPDF(file, statusCallback) {
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        
+        // Limit to first 10 pages to prevent context overflow on browser LLMs
+        const maxPages = Math.min(pdf.numPages, 10); 
+        
+        for (let i = 1; i <= maxPages; i++) {
+            statusCallback(`📄 Reading Page ${i}/${maxPages}...`);
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(" ");
+            fullText += `[Page ${i}] ${pageText}\n`;
+        }
+        return fullText;
+    } catch (e) {
+        console.error("PDF Parsing Error", e);
+        throw new Error("Could not read PDF. Ensure it is text-based, not scanned images.");
+    }
+}
+
+// --- REAL AI ENGINE (WebLLM) ---
+async function initializeEngine(statusCallback) {
+    if (State.engine) return State.engine;
+
+    if (!window.webllm) {
+        throw new Error("WebLLM library not loaded. Check index.html script tags.");
+    }
+
+    statusCallback("📥 Downloading AI Model (This happens once)...");
+    
+    // Create engine with a progress callback
+    const initProgressCallback = (report) => {
+        statusCallback(`📥 Loading AI: ${Math.ceil(report.progress * 100)}% - ${report.text}`);
+    };
+
+    const engine = new window.webllm.MLCEngine();
+    engine.setInitProgressCallback(initProgressCallback);
+    
+    await engine.reload(SELECTED_MODEL);
+    State.engine = engine;
+    return engine;
+}
+
+async function generateQuestionsReal(topic, zone, text, statusCallback) {
+    const engine = await initializeEngine(statusCallback);
+    
+    // Construct the prompt (RAG Pattern)
+    // We truncate text to ~6000 chars to fit in context window safely
+    const safeContext = text.substring(0, 6000); 
+    
+    const systemPrompt = `
+        ${KNOWLEDGE_ZONES[zone].prompt}
+        Task: Generate 5 multiple-choice questions based ONLY on the provided text.
+        Output Format: A raw JSON array. No markdown, no "Here is the JSON".
+        Structure: [{"question": "...", "options": ["A", "B", "C", "D"], "correct": "The correct string", "explanation": "Brief reason"}]
+    `;
+
+    const userPrompt = `
+        Topic: ${topic}
+        Context Text: 
+        ${safeContext}
+        
+        Generate 5 JSON questions now.
+    `;
+
+    statusCallback("🧠 AI is thinking... (This may take 10-30s)");
+
+    const response = await engine.chat.completions.create({
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000, 
+    });
+
+    const rawContent = response.choices[0].message.content;
+    console.log("AI Raw Output:", rawContent);
+
+    // Sanitize and Parse JSON
+    try {
+        // Find the first '[' and last ']' to extract JSON array
+        const jsonStart = rawContent.indexOf('[');
+        const jsonEnd = rawContent.lastIndexOf(']');
+        if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON found in response");
+        
+        const jsonStr = rawContent.substring(jsonStart, jsonEnd + 1);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error("JSON Parse Error", e);
+        statusCallback("⚠️ AI formatting error. Retrying...");
+        // In a real app, you might retry query. Here we return fallback to prevent crash.
+        return []; 
+    }
+}
+
+
+// --- MAIN WORKFLOW ---
+async function processAndLoad() {
+    const topic = document.getElementById('topic-name').value;
+    const fileInput = document.getElementById('pdf-file');
+    const aiStatus = document.getElementById('ai-status');
+    const btn = document.querySelector('.primary-btn');
+    
+    const age = localStorage.getItem('ageRange') || 10;
+    const zone = getKnowledgeZone(age);
+
+    if (!topic || !fileInput.files[0]) {
+        alert("Please name the topic and select a PDF.");
+        return;
+    }
+
+    btn.disabled = true;
+    document.body.style.cursor = 'wait';
+
+    try {
+        // 1. Read PDF
+        State.extractedText = await extractTextFromPDF(fileInput.files[0], (msg) => aiStatus.innerText = msg);
+        
+        // 2. Generate Questions
+        const questions = await generateQuestionsReal(topic, zone, State.extractedText, (msg) => aiStatus.innerText = msg);
+        
+        if (questions.length === 0) throw new Error("AI generated no valid questions.");
+
+        // 3. Hydrate State
+        State.db = questions.map((q, i) => ({
+            id: `gen-${i}`,
+            question: q.question,
+            options: q.options,
+            correct: q.correct,
+            explanation: q.explanation || "Derived from document context.",
+            pdf_ref: "Page 1-10", 
+            question_topic: topic
+        }));
+
+        aiStatus.innerText = `✅ Ready! Generated ${State.db.length} questions.`;
+        document.getElementById('action-tiles').classList.remove('disabled');
+
+    } catch (error) {
+        aiStatus.innerText = `❌ Error: ${error.message}`;
+        console.error(error);
+    } finally {
+        btn.disabled = false;
+        document.body.style.cursor = 'default';
+    }
+}
+
+
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    applyTheme();
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js');
+
+    // Bind Level Slider
+    const ageRange = document.getElementById('age-range');
+    const ageVal = document.getElementById('age-val');
+    const storedAge = localStorage.getItem('ageRange') || 10;
+    
+    if (ageRange && ageVal) {
+        ageRange.value = storedAge;
+        ageVal.innerText = `${storedAge} yrs (${getKnowledgeZone(storedAge)})`;
+        
+        ageRange.addEventListener('input', (e) => {
+            const val = e.target.value;
+            ageVal.innerText = `${val} yrs (${getKnowledgeZone(val)})`;
+            localStorage.setItem('ageRange', val);
+        });
+    }
+
+    // Bind PDF Name Display
+    document.getElementById('pdf-file').addEventListener('change', (e) => {
+        const name = e.target.files[0] ? e.target.files[0].name : "Tap to Upload PDF";
+        document.getElementById('file-status').innerText = name;
+    });
+});
+
+
+// --- QUIZ & UI LOGIC (Standard V22 Flow) ---
+
+function startQuiz() {
+    if(State.db.length === 0) return alert("Load content first!");
+    
+    // Simple prompt for length
+    const max = State.db.length;
+    // Default to all questions generated
+    State.sessionSet = [...State.db]; 
+    State.quizState = State.sessionSet.map(() => ({ answer: null, isCorrect: null }));
+    State.currentIndex = 0;
+    State.seconds = 0;
+    
+    switchView('quiz-view');
+    renderQuestion();
+    startTimer();
+}
+
+function renderQuestion() {
+    const q = State.sessionSet[State.currentIndex];
+    const sq = State.quizState[State.currentIndex];
+    
+    // Safety check
+    if (!q) return;
+
+    const content = document.getElementById('quiz-content');
+    content.innerHTML = `
+        <div class="question-card glass">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span class="badge">${q.question_topic || 'General'}</span>
+                <span style="font-size:0.8rem; opacity:0.7;">${State.currentIndex + 1} / ${State.sessionSet.length}</span>
+            </div>
+            <h3 style="margin-bottom:20px;">${q.question}</h3>
+            <div class="options-list">
+                ${q.options.map(opt => `
+                    <button class="opt-btn ${sq.answer === opt ? (sq.isCorrect ? 'right' : 'wrong') : ''}" 
+                            onclick="selectAnswer(this, '${opt.replace(/'/g, "\\'")}')" 
+                            ${sq.isCorrect !== null ? 'disabled' : ''}>
+                        ${opt}
+                    </button>
+                `).join('')}
+            </div>
+            ${sq.isCorrect !== null ? `<div class="feedback-box">${sq.isCorrect ? '✅ Correct!' : '❌ Incorrect.'} ${q.explanation}</div>` : ''}
+        </div>
+    `;
+    
+    document.getElementById('next-btn').disabled = sq.isCorrect === null; // Lock Next until answered
+}
+
+function selectAnswer(btn, choice) {
+    const q = State.sessionSet[State.currentIndex];
+    const sq = State.quizState[State.currentIndex];
+    
+    if (sq.answer) return; // Already answered
+
+    sq.answer = choice;
+    sq.isCorrect = (choice === q.correct);
+    
+    renderQuestion(); 
+}
+
+function handleNext() {
+    if (State.currentIndex < State.sessionSet.length - 1) {
+        State.currentIndex++;
+        renderQuestion();
+    } else {
+        initiateReview();
+    }
+}
+
+function initiateReview() {
+    clearInterval(State.timerInt);
+    const correct = State.quizState.filter(s => s.isCorrect).length;
+    document.getElementById('review-score').innerText = `Score: ${correct} / ${State.sessionSet.length}`;
+    
+    const summary = document.getElementById('review-summary');
+    summary.innerHTML = State.sessionSet.map((q, i) => `
+        <div class="review-card glass ${State.quizState[i].isCorrect ? 'correct-card' : 'incorrect-card'}">
+            <h4>Q${i+1}: ${q.question}</h4>
+            <p><strong>Answer:</strong> ${q.correct}</p>
+            <p><strong>Your Pick:</strong> ${State.quizState[i].answer || 'Skipped'}</p>
+        </div>
+    `).join('');
+    
+    switchView('review-view');
+}
+
+// --- NAVIGATION & TIMERS ---
+function switchView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+function startTimer() {
+    if(State.timerInt) clearInterval(State.timerInt);
+    State.timerInt = setInterval(() => {
+        State.seconds++;
+        const m = String(Math.floor(State.seconds / 60)).padStart(2, '0');
+        const s = String(State.seconds % 60).padStart(2, '0');
+        const timerEl = document.getElementById('timer');
+        if(timerEl) timerEl.innerText = `${m}:${s}`;
+    }, 1000);
+}
+
+function openSettingsModal() {
+    document.getElementById('modal-title').innerText = "Settings";
+    document.getElementById('modal-body').innerHTML = `
+        <div class="input-group">
+            <label>Dark Mode</label>
+            <input type="checkbox" onchange="isDarkMode = this.checked; localStorage.setItem('isDarkMode', this.checked); applyTheme();" ${isDarkMode ? 'checked' : ''}>
+        </div>
+        <div class="input-group">
+            <label>Font Size</label>
+            <input id="font-size-range" type="range" min="12" max="24" value="${fontSize}" oninput="fontSize = this.value; localStorage.setItem('fontSize', this.value); applyTheme();">
+        </div>
+    `;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function openExitConfirmation() {
+    if(confirm("Exit Quiz? Progress will be lost.")) {
+        clearInterval(State.timerInt);
+        switchView('hub-view');
+    }
+}
+
+// Basic modal closing logic
+document.querySelector('.close-modal')?.addEventListener('click', () => {
+    document.getElementById('modal-overlay').classList.add('hidden');
+});
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
 

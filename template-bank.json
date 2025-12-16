@@ -1,0 +1,34 @@
+[
+    {
+        "topic": "Template Topic Name",
+        "zone": "Explorer",
+        "type": "multiple-choice",
+        "question": "What color is a typical traffic stop sign?",
+        "options": [
+            "Blue",
+            "Red",
+            "Green",
+            "Yellow"
+        ],
+        "correct_answer": "Red",
+        "pdf_page": 1,
+        "pdf_excerpt": "Traffic stop signs are internationally recognized as red octagons for maximum visibility and universal understanding.",
+        "image_query": "Traffic stop sign"
+    },
+    {
+        "topic": "Template Topic Name",
+        "zone": "Creator",
+        "type": "multiple-choice",
+        "question": "If you double the force applied to an object, how does its acceleration change, assuming mass remains constant?",
+        "options": [
+            "It is halved",
+            "It stays the same",
+            "It is doubled",
+            "It is quadrupled"
+        ],
+        "correct_answer": "It is doubled",
+        "pdf_page": 5,
+        "pdf_excerpt": "According to Newton's Second Law ($F=ma$), if mass ($m$) is constant, force ($F$) is directly proportional to acceleration ($a$).",
+        "image_query": "Newton's second law diagram"
+    }
+]
