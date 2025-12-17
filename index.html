@@ -3,83 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lumina Nexus | Student Vault</title>
+    <title>Lumina Scholar | Study Library</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <nav class="side-bar">
-        <div class="nav-logo">L</div>
-        <div class="nav-items">
-            <button class="nav-btn active" title="Library"><i class="fas fa-book"></i></button>
-            <button class="nav-btn" onclick="Nav.toggle('reset')" title="Clear All"><i class="fas fa-trash-alt"></i></button>
-        </div>
-    </nav>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="brand">LUMINA</div>
+            <nav id="library-list">
+                </nav>
+            <div class="sidebar-footer">
+                <button onclick="UI.toggleModal('add')" class="btn-main"><i class="fas fa-plus"></i> New Book</button>
+                <button onclick="UI.toggleModal('reset')" class="btn-danger-icon"><i class="fas fa-trash"></i> Purge All</button>
+            </div>
+        </aside>
 
-    <main class="app-content">
-        <header class="content-header">
-            <div>
-                <h1>Knowledge Vault</h1>
-                <p>Select a source or sync a new neural node.</p>
+        <main class="content">
+            <div id="empty-state" class="empty-state">
+                <i class="fas fa-book-open"></i>
+                <h1>Your Library is Empty</h1>
+                <p>Upload a study PDF to generate custom flashcards and quizzes.</p>
             </div>
-            <button class="action-btn-main" onclick="Nav.toggle('add')">
-                <i class="fas fa-plus"></i> Sync New PDF
-            </button>
-        </header>
 
-        <div class="library-grid" id="deck-list">
+            <div id="study-suite" class="study-suite hidden">
+                <header class="suite-header">
+                    <h2 id="active-title">Book Title</h2>
+                    <div class="mode-tabs">
+                        <button class="tab active" id="t-quiz" onclick="Core.setMode('quiz')">Quiz</button>
+                        <button class="tab" id="t-cards" onclick="Core.setMode('cards')">Flashcards</button>
+                        <button class="tab" id="t-sheet" onclick="Core.setMode('sheet')">Study Sheet</button>
+                    </div>
+                </header>
+                <div id="stage" class="stage"></div>
+                <footer class="stage-footer">
+                    <button id="next-btn" class="btn-next hidden" onclick="Core.next()">Next Item <i class="fas fa-arrow-right"></i></button>
+                </footer>
             </div>
-    </main>
+        </main>
+    </div>
 
-    <div id="modal-add" class="overlay hidden">
-        <div class="glass-modal">
-            <div class="modal-head">
-                <h2>Neural Sync</h2>
-                <i class="fas fa-times" onclick="Nav.toggle('add')"></i>
-            </div>
-            <div class="form-group">
-                <label>Document Name</label>
-                <input type="text" id="topic-input" placeholder="e.g. Biology 101 / Home Remedies">
-            </div>
-            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-                <i class="fas fa-cloud-upload-alt"></i>
-                <p id="file-label">Drag or Click to Upload PDF</p>
-                <span class="file-hint">Max size: 25MB</span>
+    <div id="modal-add" class="modal hidden">
+        <div class="modal-card">
+            <h2>Add Study Material</h2>
+            <input type="text" id="book-name" placeholder="Name (e.g. Biology 101)">
+            <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+                <i class="fas fa-file-upload"></i>
+                <p id="file-label">Select PDF Document</p>
             </div>
             <input type="file" id="file-input" class="hidden" accept="application/pdf">
-            <button class="btn-sync" id="process-btn" onclick="Core.process()">
-                Initialize Study Node
-            </button>
+            <button id="process-btn" class="btn-main full" onclick="Core.process()">Generate Study Guide</button>
+            <button onclick="UI.toggleModal('add')" class="btn-text">Cancel</button>
         </div>
     </div>
 
-    <div id="modal-reset" class="overlay hidden">
-        <div class="glass-modal warning">
-            <h2>Purge Library?</h2>
-            <p>This will permanently delete all saved books and progress. This action cannot be undone.</p>
-            <div class="btn-row">
-                <button class="btn-danger" onclick="Core.purge()">Confirm Purge</button>
-                <button class="btn-ghost" onclick="Nav.toggle('reset')">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="view-hub" class="study-suite hidden">
-        <div class="suite-sidebar">
-            <button class="close-suite" onclick="Nav.closeHub()"><i class="fas fa-chevron-left"></i> Library</button>
-            <h2 id="active-title">---</h2>
-            <div class="suite-nav">
-                <button class="suite-tab active" id="t-quiz" onclick="Core.setMode('quiz')"><i class="fas fa-vial"></i> Interactive Quiz</button>
-                <button class="suite-tab" id="t-cards" onclick="Core.setMode('cards')"><i class="fas fa-clone"></i> Flashcards</button>
-                <button class="suite-tab" id="t-sheet" onclick="Core.setMode('sheet')"><i class="fas fa-file-alt"></i> Study Sheet</button>
-            </div>
-        </div>
-        <div class="suite-main">
-            <div id="study-stage" class="stage"></div>
-            <footer class="stage-footer">
-                <button class="btn-next hidden" id="next-btn" onclick="Core.next()">Next Sequence <i class="fas fa-arrow-right"></i></button>
-            </footer>
+    <div id="modal-reset" class="modal hidden">
+        <div class="modal-card">
+            <h2>Clear Library?</h2>
+            <p>This will delete all saved books and generated study content.</p>
+            <button class="btn-danger full" onclick="Core.purge()">Delete Everything</button>
+            <button onclick="UI.toggleModal('reset')" class="btn-text">Cancel</button>
         </div>
     </div>
 
