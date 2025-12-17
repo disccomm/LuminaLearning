@@ -3,66 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lumina v9.0</title>
+    <title>Lumina v9.5 | Aura Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="background-mesh"></div>
     <div id="toast" class="toast hidden"></div>
 
     <div class="container" id="view-library">
         <header>
-            <div class="logo-box"><div class="dot"></div><h1>LUMINA</h1></div>
-            <button onclick="Nav.toggle('reset')" class="pwr-btn"><i class="fas fa-power-off"></i></button>
+            <div class="branding">
+                <div class="aura-orb"></div>
+                <h1>LUMINA</h1>
+            </div>
+            <button onclick="Nav.toggle('reset')" class="btn-icon danger-glow"><i class="fas fa-power-off"></i></button>
         </header>
+
+        
         
         <div class="grid" id="deck-list">
-            <div class="tile add" onclick="Nav.toggle('add')">
-                <i class="fas fa-plus"></i>
-                <p>SYNC SOURCE</p>
+            <div class="tile add-source" onclick="Nav.toggle('add')">
+                <div class="icon-circle"><i class="fas fa-plus"></i></div>
+                <p>NEW SOURCE</p>
             </div>
         </div>
     </div>
 
     <div id="modal-reset" class="modal hidden">
-        <div class="glass-card">
-            <h2>PURGE ALL DATA?</h2>
-            <p>This will erase all synced neural nodes permanently.</p>
-            <div class="actions">
-                <button class="btn danger" onclick="Core.purge()">PURGE</button>
-                <button class="btn" onclick="Nav.toggle('reset')">CANCEL</button>
+        <div class="glass-modal">
+            <i class="fas fa-shield-virus neon-icon"></i>
+            <h2>PURGE DATA?</h2>
+            <p>Delete all synced neural nodes permanently?</p>
+            <div class="modal-btns">
+                <button class="btn btn-danger" onclick="Core.purge()">PURGE</button>
+                <button class="btn btn-ghost" onclick="Nav.toggle('reset')">CANCEL</button>
             </div>
         </div>
     </div>
 
     <div id="modal-add" class="modal hidden">
-        <div class="glass-card">
-            <h2>NEW SYNC</h2>
-            <input type="text" id="topic" placeholder="NODE NAME">
-            <div class="drop-box" onclick="document.getElementById('file').click()">
-                <i class="fas fa-upload"></i>
-                <p id="fname">SELECT PDF</p>
+        <div class="glass-modal">
+            <h2>SYNC SOURCE</h2>
+            <div class="input-wrap">
+                <input type="text" id="topic" placeholder="NODE NAME (e.g. Home Remedies)">
+            </div>
+            <div class="upload-zone" onclick="document.getElementById('file').click()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p id="fname">DROP PDF DNA</p>
             </div>
             <input type="file" id="file" class="hidden" accept="application/pdf">
-            <button class="btn primary" id="proc-btn" onclick="Core.process()">INITIALIZE</button>
-            <button class="btn" onclick="Nav.toggle('add')">ABORT</button>
+            <button class="btn btn-neon" id="proc-btn" onclick="Core.process()">INITIALIZE LINK</button>
+            <button class="btn btn-ghost" onclick="Nav.toggle('add')">ABORT</button>
         </div>
     </div>
 
-    <div id="view-hub" class="full-view hidden">
-        <header>
-            <h3 id="hub-topic">---</h3>
-            <i class="fas fa-times" onclick="Nav.closeHub()"></i>
+    <div id="view-hub" class="study-hub hidden">
+        <header class="hub-nav">
+            <h3 id="hub-topic">SUBJECT</h3>
+            <i class="fas fa-circle-xmark close-hub" onclick="Nav.closeHub()"></i>
         </header>
-        <nav>
+        
+        <div class="tab-bar">
             <button class="tab active" id="t-quiz" onclick="Core.setMode('quiz')">QUIZ</button>
-            <button class="tab" id="t-cards" onclick="Core.setMode('cards')">CARDS</button>
-            <button class="tab" id="t-sheet" onclick="Core.setMode('sheet')">DATA</button>
-        </nav>
-        <div id="stage"></div>
+            <button class="tab" id="t-cards" onclick="Core.setMode('cards')">SYNC-CARDS</button>
+            <button class="tab" id="t-sheet" onclick="Core.setMode('sheet')">DATASET</button>
+        </div>
+
+        <div id="stage" class="stage-area"></div>
+
         <footer>
-            <button class="btn primary hidden" id="next-btn" onclick="Core.next()">CONTINUE</button>
+            <button class="btn btn-neon hidden" id="next-btn" onclick="Core.next()">EVOLVE <i class="fas fa-arrow-right"></i></button>
         </footer>
     </div>
 

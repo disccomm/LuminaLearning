@@ -1,35 +1,52 @@
-:root { --main: #6366f1; --neon: #22d3ee; --bg: #030712; --card: rgba(30, 41, 59, 0.7); --border: rgba(255,255,255,0.1); }
-body { background: var(--bg); color: #f8fafc; margin: 0; font-family: sans-serif; overflow: hidden; }
-.container { padding: 40px 20px; max-width: 600px; margin: 0 auto; height: 100vh; }
-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-.logo-box { display: flex; align-items: center; gap: 10px; }
-.dot { width: 8px; height: 8px; background: var(--neon); border-radius: 50%; box-shadow: 0 0 10px var(--neon); }
-h1 { font-size: 18px; letter-spacing: 3px; margin: 0; }
+:root {
+    --primary: #8b5cf6; --neon: #06b6d4; --bg: #020617;
+    --card: rgba(15, 23, 42, 0.8); --border: rgba(255, 255, 255, 0.08);
+}
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.tile { background: var(--card); border: 1px solid var(--border); padding: 25px; border-radius: 20px; cursor: pointer; backdrop-filter: blur(10px); }
-.add { border: 1px dashed var(--neon); text-align: center; color: var(--neon); }
+body {
+    background: var(--bg); color: #f8fafc; margin: 0;
+    font-family: 'Inter', -apple-system, sans-serif; overflow: hidden;
+}
 
-.modal, .full-view { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-.glass-card { background: var(--card); padding: 30px; border-radius: 24px; width: 100%; max-width: 350px; text-align: center; border: 1px solid var(--border); }
-.drop-box { border: 1px dashed var(--border); padding: 30px; border-radius: 15px; margin: 20px 0; }
+.background-mesh {
+    position: fixed; inset: 0; z-index: -1;
+    background: radial-gradient(circle at 20% 20%, #1e1b4b 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, #1e1b4b 0%, #020617 100%);
+}
 
-.tab { flex: 1; padding: 12px; border: none; background: transparent; color: #64748b; font-weight: bold; border-radius: 10px; cursor: pointer; }
-.tab.active { background: var(--main); color: #fff; }
-nav { display: flex; width: 100%; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 12px; margin-bottom: 20px; }
+.container { padding: 40px 20px; max-width: 550px; margin: 0 auto; height: 100vh; }
 
-.option { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border); cursor: pointer; }
-.correct { background: #10b981 !important; color: #000; }
-.wrong { background: #ef4444 !important; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+.branding { display: flex; align-items: center; gap: 12px; }
+.aura-orb { width: 12px; height: 12px; background: var(--neon); border-radius: 50%; box-shadow: 0 0 20px var(--neon); }
+h1 { font-size: 20px; font-weight: 900; letter-spacing: 5px; margin: 0; color: #fff; }
 
-/* 3D CARDS */
-.card-3d { perspective: 1000px; height: 300px; width: 100%; cursor: pointer; }
-.card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.tile { 
+    background: var(--card); border: 1px solid var(--border); backdrop-filter: blur(15px);
+    border-radius: 28px; padding: 25px; cursor: pointer; transition: 0.4s;
+}
+.tile:hover { border-color: var(--neon); transform: translateY(-5px); box-shadow: 0 10px 30px rgba(6, 182, 212, 0.1); }
+.add-source { border: 2px dashed var(--border); text-align: center; color: var(--neon); font-weight: 900; font-size: 12px; }
+.icon-circle { width: 40px; height: 40px; border: 1px solid var(--neon); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; }
+
+/* STUDY ENGINE VISUALS */
+.study-hub { position: fixed; inset: 0; background: var(--bg); z-index: 500; padding: 30px; display: flex; flex-direction: column; }
+.tab-bar { display: flex; background: rgba(255,255,255,0.03); padding: 5px; border-radius: 15px; margin-bottom: 30px; }
+.tab { flex: 1; border: none; background: transparent; color: #64748b; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; transition: 0.3s; }
+.tab.active { background: var(--primary); color: #fff; box-shadow: 0 5px 15px rgba(139, 92, 246, 0.3); }
+
+/* CARDS */
+.card-container { perspective: 1000px; height: 350px; width: 100%; }
+.card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform-style: preserve-3d; }
 .flipped { transform: rotateY(180deg); }
-.face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; padding: 30px; border-radius: 20px; background: var(--card); border: 1px solid var(--border); text-align: center; }
-.back { transform: rotateY(180deg); background: var(--main); font-weight: bold; }
+.face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; padding: 30px; border-radius: 30px; background: var(--card); border: 1px solid var(--border); text-align: center; font-size: 20px; }
+.back { transform: rotateY(180deg); background: linear-gradient(135deg, #4c1d95, #8b5cf6); border: none; font-weight: 800; color: #fff; }
 
-.btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
-.primary { background: var(--neon); color: #000; }
-.danger { background: #ef4444; color: #fff; }
+.btn-neon { background: var(--neon); color: #000; font-weight: 900; letter-spacing: 1px; border-radius: 18px; border: none; padding: 18px; width: 100%; cursor: pointer; box-shadow: 0 0 20px rgba(6, 182, 212, 0.3); }
+.btn-ghost { background: transparent; color: #64748b; border: none; margin-top: 15px; cursor: pointer; width: 100%; }
 .hidden { display: none !important; }
+
+/* CUSTOM MODAL CSS */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.glass-modal { background: var(--card); border: 1px solid var(--border); padding: 40px; border-radius: 32px; width: 100%; max-width: 380px; text-align: center; }
