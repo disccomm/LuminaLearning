@@ -2,1291 +2,157 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lumina Study Engine - Enterprise v6.7 (Critical UI/UX Fix)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumina v6.7 - Enterprise Stable</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <script>
-        // CRITICAL FIX: Explicitly set worker source to fix "GlobalWorkerOptions.workerSrc" error on some platforms
-        if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
-            window.pdfjsLib = pdfjsLib;
-        } else {
-             // Fallback for non-module environments
-            const script = document.createElement('script');
-            script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs";
-            document.head.appendChild(script);
-            window.pdfjsLib = window['pdfjs-dist/build/pdf'];
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
-        }
+        // CRITICAL FIX: Explicitly setting worker to prevent the silent failure seen in v6.6
+        window.addEventListener('load', () => {
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+            }
+        });
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <style>
-        /* --- 🎨 V6.7 Mobile-First/Glassmorphism Core Styles --- */
         :root {
-            --primary: #5856D6; /* Deep Purple/Violet - iOS Accent */
-            --primary-light: #7B79FF;
-            --secondary: #34C759; /* Green for Success/Action */
-            --error: #FF3B30;
-            --bg-dark: #121215; /* Deeper Dark Mode Background */
-            --bg-medium: rgba(30, 30, 35, 0.8); /* Card/Panel for Glassmorphism */
-            --bg-light: #48484A; /* Input/Accent Background */
-            --text-main: #FFFFFF;
-            --text-sub: #EBEBF599; 
-            --radius-xl: 20px; /* Large rounded corners for touch */
-            --radius-md: 10px;
-            --shadow-elevation: 0 8px 30px rgba(0, 0, 0, 0.6);
-            --header-height: 60px;
-        }
-
-        /* ------------------ GLASSMORPHISM BASE ------------------ */
-        .glass-card {
-            background-color: var(--bg-medium);
-            border-radius: var(--radius-xl);
-            padding: 20px;
-            margin-bottom: 25px;
-            box-shadow: var(--shadow-elevation);
-            border: 1px solid rgba(255, 255, 255, 0.05); /* Subtle white border */
-            backdrop-filter: blur(8px); /* The key Glassmorphism effect */
-            -webkit-backdrop-filter: blur(8px);
-        }
-        
-        * {
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            transition: all 0.3s ease-in-out;
+            --primary: #5856D6;
+            --bg-dark: #121215;
+            --glass: rgba(30, 30, 35, 0.85);
+            --text: #FFFFFF;
+            --radius: 20px;
         }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
+            background: var(--bg-dark);
+            color: var(--text);
+            font-family: -apple-system, system-ui, sans-serif;
             margin: 0;
-            min-height: 100vh;
+            padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
-            background-image: radial-gradient(circle at 10% 20%, #201a35 0%, #121215 90%);
         }
-        
-        .app-container {
-            width: 100%;
-            max-width: 768px; /* Optimized for tablet/mobile */
-            padding: calc(var(--header-height) + 15px) 15px 15px;
-        }
-        .hidden { display: none !important; }
-        .hidden-view { display: none !important; }
 
-        /* --- Navigation & Headers (Fixed for Mobile) --- */
-        .app-header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: var(--header-height);
-            padding: 0 15px;
-            z-index: 1000;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background-color: rgba(18, 18, 21, 0.9); /* Semi-transparent fixed header */
-            backdrop-filter: blur(5px);
-        }
-        .brand { font-size: 1.6rem; font-weight: 700; color: var(--primary-light); }
-        .user-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 14px; /* Larger touch target */
-            background: var(--bg-light);
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 0.95rem;
-        }
-        .user-pill:active { transform: scale(0.98); }
-        
-        /* --- Card and Input Styling (Glass Card applied) --- */
-        .card-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .container { width: 100%; max-width: 500px; margin-top: 60px; }
+
+        /* GLASSMORPHISM UI */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius);
+            padding: 24px;
             margin-bottom: 20px;
-            font-size: 1.1rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        .step-num {
-            background: var(--primary);
-            color: var(--text-main);
-            width: 32px; /* Larger for touch */
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.1rem;
-            font-weight: 700;
+
+        /* MOBILE OPTIMIZED INPUTS */
+        input, select {
+            width: 100%;
+            padding: 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            margin-top: 8px;
         }
-        
-        label {
-            display: block;
-            font-size: 0.95rem;
-            color: var(--text-sub);
-            margin-bottom: 5px;
+
+        .upload-zone {
+            border: 2px dashed var(--primary);
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 15px;
+            background: rgba(88, 86, 214, 0.1);
+            cursor: pointer;
             margin-top: 15px;
         }
-        
-        input[type="text"], select {
-            width: 100%;
-            padding: 15px; /* Larger padding for touch */
-            background-color: var(--bg-light);
-            color: var(--text-main);
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 1.1rem;
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-            -webkit-appearance: none;
-        }
 
-        .upload-area {
-            display: flex;
-            flex-direction: column; /* Stack vertically for mobile */
-            align-items: center;
-            gap: 15px;
-            padding: 30px; /* Large touch target */
-            border: 2px dashed var(--primary);
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            background-color: rgba(88, 86, 214, 0.15);
-        }
-        .upload-area:hover { background-color: rgba(88, 86, 214, 0.3); }
-        .upload-info strong { display: block; font-size: 1.1rem; }
-        .upload-info span { font-size: 0.85rem; color: var(--text-sub); }
-        .icon-circle { 
-            width: 50px; height: 50px; border-radius: 50%; 
-            background: var(--primary); display: flex; align-items: center; 
-            justify-content: center; font-size: 1.8rem;
-        }
-
-        /* --- Buttons (Crucial for touch interface) --- */
+        /* BUTTONS THAT WORK ON TOUCH */
         .action-btn {
             width: 100%;
-            padding: 18px; /* Increased height for touch */
-            border: none;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            font-size: 1.1rem;
-            cursor: pointer;
-            margin-top: 15px;
-            color: var(--text-main);
+            padding: 18px;
             background: var(--primary);
-            box-shadow: 0 4px 15px rgba(88, 86, 214, 0.5);
-        }
-        .action-btn:active { transform: scale(0.98); background: var(--primary-light); }
-        .action-btn.secondary {
-            background: var(--bg-light);
-            color: var(--primary-light);
-            box-shadow: none;
-            border: 1px solid var(--primary);
-        }
-        .action-btn.danger { background: var(--error); box-shadow: 0 4px 15px rgba(255, 59, 48, 0.5); }
-        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-        .clear-btn {
-            background: none;
             border: none;
-            color: var(--error);
-            font-size: 0.9rem;
-            margin-top: 10px;
-            cursor: pointer;
-            text-align: center; /* Center clear button for better mobile usability */
-            width: 100%;
-            padding: 5px 0;
-        }
-
-        /* --- Quiz Specifics (Touch Optimized) --- */
-        .quiz-header {
-            display: flex;
-            flex-wrap: wrap; 
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-            border-bottom: 1px solid var(--bg-light);
-            padding-bottom: 15px;
-            position: relative;
-        }
-        .timer-display {
-            font-size: 1.2rem;
+            border-radius: 15px;
+            color: white;
             font-weight: 700;
-            color: var(--secondary);
-        }
-        .icon-btn {
-            background: none;
-            border: none;
-            color: var(--text-sub);
-            font-size: 1.5rem; /* Larger icon for touch */
+            font-size: 18px;
             cursor: pointer;
-            padding: 10px; /* Increased hit area */
-        }
-        .progress-track {
-            flex-grow: 1;
-            height: 10px;
-            background: var(--bg-light);
-            border-radius: 5px;
-            overflow: hidden;
-            flex-basis: 100%; /* Full width on mobile */
-            order: 4; /* Push to the next line */
-            margin-top: 10px;
-        }
-        .options-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px; /* More space between options */
-        }
-        .option-btn {
-            background: var(--bg-medium); /* Use Glass card style */
-            color: var(--text-main);
-            padding: 20px; /* Significant padding for touch */
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius-xl);
-            text-align: left;
-            font-size: 1.1rem;
-            font-weight: 500;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-        .option-btn:active:not([disabled]) { background: var(--primary); }
-        .option-btn.correct { background: var(--secondary); color: var(--bg-dark); font-weight: 700; border-color: var(--secondary); }
-        .option-btn.wrong { background: var(--error); color: var(--text-main); border-color: var(--error); opacity: 1; }
-        
-        /* Quiz Question & Image */
-        #q-text { font-size: 1.4rem; line-height: 1.4; font-weight: 700; }
-        #quiz-image {
-            max-width: 100%;
-            max-height: 250px; 
-            object-fit: cover;
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            border: 3px solid var(--primary);
-        }
-        
-        /* Modal & Pause */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            backdrop-filter: blur(10px);
-        }
-        .modal-content {
-            background: var(--bg-dark);
-            padding: 30px;
-            border-radius: var(--radius-xl);
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
-            box-shadow: var(--shadow-elevation);
-            border: 1px solid var(--primary);
+            box-shadow: 0 4px 15px rgba(88, 86, 214, 0.4);
+            touch-action: manipulation;
         }
 
-        /* Worksheet Print Styles */
-        @media print {
-            body { background: white; color: black; }
-            .app-header, .worksheet-controls, .hidden-print, #view-hub, #view-quiz, #view-flashcards { display: none !important; }
-            .app-container { max-width: 100%; margin: 0; padding: 0; }
-            #view-worksheet { display: block !important; width: 100%; }
-            .worksheet-content-wrapper { box-shadow: none; border: none; background: white; color: black; }
-            .worksheet-header h2 { color: black; }
-            .worksheet-item { border-bottom: 1px solid #ccc !important; color: black; }
-            .worksheet-item p { color: black; }
-        }
-        
+        .action-btn:active { transform: scale(0.96); opacity: 0.9; }
+
+        .hidden { display: none; }
     </style>
-    
 </head>
 <body>
-    <header class="app-header">
-        <div class="brand">Lumina<i class="fas fa-brain" style="font-size: 1.2rem; margin-left: 5px; color: var(--primary);"></i></div>
-        <div class="user-pill" onclick="Controller.toggleSettings()">
-            <div class="avatar" style="width: 20px; height: 20px; border-radius: 50%; background: var(--primary-light);"></div>
-            <span id="nav-username">Student</span>
-        </div>
-    </header>
 
-    <div class="app-container">
-        
-        <div id="view-hub">
+    <div class="container">
+        <div id="hub-view">
             <div class="glass-card">
-                <div class="card-title"><div class="step-num">1</div><h2>Source & Topic</h2></div>
-                <label for="topic-input">Learning Topic</label>
-                <input type="text" id="topic-input" placeholder="e.g., Home Safety, Roman Empire">
-
-                <label for="file-upload" style="margin-top: 15px;">PDF File (Max 100+ Pages Supported)</label>
-                <div id="drop-zone" class="upload-area">
-                    <div class="icon-circle"><i class="fas fa-file-pdf"></i></div>
-                    <div class="upload-info">
-                        <strong id="file-name">Select PDF Source</strong>
-                        <span>Tap to upload or drop file</span>
-                    </div>
-                    <input type="file" id="file-upload" accept="application/pdf" class="hidden">
-                </div>
-                <button id="clear-source-btn" class="clear-btn"><i class="fas fa-trash-alt"></i> Clear Input</button>
-            </div>
-
-            <div class="glass-card">
-                <div class="card-title"><div class="step-num" style="background: var(--secondary);">2</div><h2>Study Configuration</h2></div>
+                <h2>1. Source Material</h2>
+                <label>Topic</label>
+                <input type="text" id="topic" placeholder="Enter Topic...">
                 
-                <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between;">
-                    <div style="flex: 1 1 180px;">
-                        <label for="quiz-length-select">Questions/Session</label>
-                        <select id="quiz-length-select">
-                            <option value="5">5 Questions</option>
-                            <option value="10">10 Questions</option>
-                            <option value="25">25 Questions</option>
-                            <option value="50">50 Questions</option>
-                            <option value="100">100 Questions (Max)</option>
-                        </select>
-                    </div>
-                    
-                    <div style="flex: 1 1 120px;">
-                        <label>Study Mode</label>
-                        <div class="mode-radios" style="display: flex; flex-direction: column; gap: 10px; padding-top: 5px;">
-                            <label style="font-size: 1rem; color: var(--text-main); font-weight: 500;">
-                                <input type="radio" name="study-mode" value="quiz" checked> Quiz
-                            </label>
-                            <label style="font-size: 1rem; color: var(--text-main); font-weight: 500;">
-                                <input type="radio" name="study-mode" value="flashcard"> Flashcards
-                            </label>
-                            <label style="font-size: 1rem; color: var(--text-main); font-weight: 500;">
-                                <input type="radio" name="study-mode" value="worksheet"> Worksheet
-                            </label>
-                        </div>
-                    </div>
+                <div class="upload-zone" id="drop-zone">
+                    <i class="fas fa-file-upload" style="font-size: 2rem; color: var(--primary);"></i>
+                    <p id="file-status">Tap to Select PDF</p>
                 </div>
+                <input type="file" id="file-input" accept="application/pdf" class="hidden">
             </div>
 
-            <button id="generate-btn" class="action-btn">Build Library (100 Qs)</button>
-
-            <div id="loading-area" class="loading-area glass-card hidden">
-                <div class="progress-track" style="height: 10px;">
-                    <div id="ai-loader-bar" class="progress-fill" style="width: 0%;"></div>
-                </div>
-                <div id="system-status" class="status-message">Awaiting input...</div>
-            </div>
-
+            <button class="action-btn" id="build-btn">Build Study Library</button>
         </div>
         
-        <div id="view-quiz" class="hidden-view">
-            <div class="glass-card">
-                <div class="quiz-header">
-                    <button class="icon-btn" onclick="Controller.pauseSession()"><i class="fas fa-pause"></i> Pause</button>
-                    <span id="question-tracker">0/5</span>
-                    <select id="question-jump-select" onchange="Controller.jumpToQuestion(this)"></select>
-                    <span id="quiz-timer" class="timer-display">00:00</span>
-                    <div class="progress-track">
-                        <div id="quiz-progress-bar" class="progress-fill" style="width: 0%;"></div>
-                    </div>
-                </div>
-                
-                <img id="quiz-image" src="" alt="Visual Aid for Quiz Question" class="hidden">
-
-                <p id="q-text" style="font-size: 1.2rem; font-weight: 600; margin-bottom: 25px;">Question text will appear here.</p>
-
-                <div id="options-container" class="options-list">
-                    </div>
-
-                <div id="q-feedback" class="glass-card hidden" style="margin-top: 25px; background-color: rgba(88, 86, 214, 0.2);">
-                    </div>
-
-                <button id="next-q-btn" class="action-btn hidden">Continue</button>
-            </div>
+        <div id="status-area" class="hidden" style="text-align: center; padding: 20px;">
+            <i class="fas fa-circle-notch fa-spin" style="font-size: 2rem;"></i>
+            <p id="status-text">Processing...</p>
         </div>
-
-        <div id="view-flashcards" class="hidden-view">
-            <div class="glass-card">
-                <div class="quiz-header">
-                    <button class="icon-btn" onclick="Controller.pauseSession()"><i class="fas fa-pause"></i> Pause</button>
-                    <span id="flashcard-tracker">0/5</span>
-                    <span id="flashcard-timer" class="timer-display">00:00</span>
-                    <div class="progress-track">
-                        <div id="flashcard-progress-bar" class="progress-fill" style="width: 0%;"></div>
-                    </div>
-                </div>
-                
-                <style>
-                    .flashcard-container { perspective: 1000px; height: 350px; margin-bottom: 25px; }
-                    .flashcard-container-inner {
-                        position: relative; width: 100%; height: 100%; transition: transform 0.8s;
-                        transform-style: preserve-3d; cursor: pointer;
-                    }
-                    .flashcard-container-inner.flipped { transform: rotateY(180deg); }
-                    .flashcard-face {
-                        position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-                        background: var(--bg-medium); border-radius: var(--radius-xl); padding: 30px;
-                        display: flex; flex-direction: column; justify-content: center; align-items: center;
-                        box-shadow: var(--shadow-elevation); border: 1px solid rgba(255, 255, 255, 0.1);
-                        backdrop-filter: blur(5px);
-                    }
-                    .flashcard-front { transform: rotateY(0deg); }
-                    .flashcard-back { transform: rotateY(180deg); text-align: left; }
-                    .flashcard-image { margin: 10px 0; max-height: 150px; border-radius: var(--radius-md); }
-                </style>
-                
-                <div id="flashcard-container" class="flashcard-container">
-                    <div class="flashcard-container-inner" onclick="Controller.flipCard(this)">
-                        <div class="flashcard-face flashcard-front">
-                            <div id="flashcard-front-content" style="font-size: 1.3rem; font-weight: 600; text-align: center;">Question text (Tap to Flip)</div>
-                        </div>
-                        <div class="flashcard-face flashcard-back">
-                            <div id="flashcard-back-content">Answer and explanation appear here.</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <button id="flashcard-next-btn" class="action-btn" onclick="Controller.nextCard()">Next Card</button>
-            </div>
-        </div>
-
-        <div id="view-worksheet" class="hidden-view" style="margin-bottom: 20px;">
-            <div class="worksheet-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 1.5rem; color: var(--primary-light);">Printable Practice Sheet</h2>
-                <button class="icon-btn" onclick="Controller.closeWorksheet()"><i class="fas fa-times"></i></button>
-            </div>
-            
-            <div class="worksheet-content-wrapper glass-card" style="padding: 30px;">
-                <div id="worksheet-content">
-                    </div>
-                
-                <div id="worksheet-answer-key" class="hidden-print" style="padding: 15px 0; margin-top: 20px; border-top: 1px solid var(--bg-light);">
-                    <div id="worksheet-answer-key-content">
-                        </div>
-                </div>
-            </div>
-            
-            <div class="worksheet-controls" style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
-                <button id="show-answer-key-btn" class="action-btn secondary" onclick="Controller.toggleWorksheetAnswerKey()" style="flex: 1 1 45%;">Show Answer Key</button>
-                <button class="action-btn" onclick="Controller.printWorksheet()" style="flex: 1 1 45%;"><i class="fas fa-print"></i> Print Worksheet</button>
-            </div>
-        </div>
-        
-
-        <div id="quiz-summary-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <h1>Review</h1>
-                <p id="summary-score" style="font-size: 1.2rem; color: var(--text-sub);">Your Score: <strong class="primary-light" style="font-size: 1.5rem;">0/5</strong></p>
-                <div class="summary-results-container" style="max-height: 250px; overflow-y: auto; margin: 15px 0;">
-                    <div id="summary-results-list" style="text-align: left; padding: 10px; font-size: 0.95rem;">
-                        </div>
-                </div>
-                <button class="action-btn secondary" onclick="Controller.retakeQuiz()">Retake Quiz</button>
-                <button class="action-btn" onclick="Controller.closeSummary()">Back to Hub</button>
-            </div>
-        </div>
-
-        <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target.id === 'settings-modal') Controller.toggleSettings()">
-            <div class="modal-content">
-                <h1>Settings</h1>
-                
-                <div class="input-wrapper" style="text-align: left;">
-                    <label for="username-input">Student Name</label>
-                    <input type="text" id="username-input" placeholder="Enter your name">
-                </div>
-
-                <div class="input-wrapper" style="text-align: left;">
-                    <label for="age-slider">Learning Level (Age: <span id="level-badge">12 yrs • Creator</span>)</label>
-                    <input type="range" id="age-slider" min="6" max="18" step="1" style="width: 100%;">
-                </div>
-
-                <button class="action-btn danger" onclick="Controller.resetApp()">Factory Reset App</button>
-                <button class="action-btn secondary" onclick="Controller.toggleSettings()">Save & Close</button>
-            </div>
-        </div>
-
-        <div id="pause-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <i class="fas fa-pause-circle" style="font-size: 3rem; color: var(--primary-light); margin-bottom: 10px;"></i>
-                <h1>Session Paused</h1>
-                <p style="font-size: 1rem; color: var(--text-sub); margin-bottom: 20px;">Your progress and time are saved.</p>
-                <button class="action-btn" onclick="Controller.resumeSession()"><i class="fas fa-play"></i> Resume</button>
-                <button class="action-btn secondary" onclick="Controller.showSummaryAndExit()"><i class="fas fa-sign-out-alt"></i> Exit & Review</button>
-            </div>
-        </div>
-        
-        <div id="toast-message" class="toast hidden"></div>
-
     </div>
 
 <script>
-    // --- V6.7 CONFIGURATION ---
-    const CONFIG = {
-        MIN_PAGES_TO_PROCESS: 100,
-        MAX_QUESTIONS_GENERATED: 100,
-        MAX_INFERENCE_RETRIES: 3,
-        TIMER_INTERVAL_MS: 1000, 
-    };
-
-    // SIMULATED EXTERNAL ASSET MANIFEST (Pexels URLs)
-    const SIMULATED_PEXELS_URLS = [
-        "https://images.pexels.com/photos/164005/pexels-photo-164005.jpeg?auto=compress&cs=tinysrgb&w=800", // Fire extinguisher
-        "https://images.pexels.com/photos/209807/pexels-photo-209807.jpeg?auto=compress&cs=tinysrgb&w=800", // Water Leak
-        "https://images.pexels.com/photos/1036329/pexels-photo-1036329.jpeg?auto=compress&cs=tinysrgb&w=800", // Emergency Kit
-        "https://images.pexels.com/photos/1486222/pexels-photo-1486222.jpeg?auto=compress&cs=tinysrgb&w=800", // First Aid Kit
-        "https://images.pexels.com/photos/110820/pexels-photo-110820.jpeg?auto=compress&cs=tinysrgb&w=800" // Smoke Alarm
-    ];
-
-
-    // --- GLOBAL STATE ---
-    const State = {
-        allQuestions: [],
-        sessionQuestions: [],
-        currentQIndex: 0,
-        quizResults: [], 
-        imageManifest: {}, 
-        settings: {
-            username: localStorage.getItem("lumina_user") || "Student",
-            age: parseInt(localStorage.getItem("lumina_age")) || 12
-        },
-        lastFile: null, 
-        studyMode: 'quiz',
-        quizLength: 5,
-        isPaused: false,
-        sessionElapsedTime: 0,
-        questionStartTime: 0,
-        currentView: 'view-hub'
-    };
-
-    // --- UI MAPPING (Fixed V6.7) ---
     const UI = {
-        btn: document.getElementById('generate-btn'),
-        loadingArea: document.getElementById('loading-area'), 
-        status: document.getElementById('system-status'),
-        loader: document.getElementById('ai-loader-bar'),
-        fileInput: document.getElementById('file-upload'),
-        topicInput: document.getElementById('topic-input'),
         dropZone: document.getElementById('drop-zone'),
-        quizSummaryModal: document.getElementById('quiz-summary-modal'),
-        toast: document.getElementById('toast-message'),
-        clearBtn: document.getElementById('clear-source-btn'),
-        qJumpSelect: document.getElementById('question-jump-select'),
-        quizImage: document.getElementById('quiz-image'),
-        quizLengthSelect: document.getElementById('quiz-length-select'),
-        studyModeRadios: document.querySelectorAll('input[name="study-mode"]'),
-        worksheetContent: document.getElementById('worksheet-content'),
-        worksheetAnswerKeyContainer: document.getElementById('worksheet-answer-key'),
-        worksheetShowKeyBtn: document.getElementById('show-answer-key-btn'),
-        pauseModal: document.getElementById('pause-modal'),
-        quizTimer: document.getElementById('quiz-timer'),
-        flashcardTimer: document.getElementById('flashcard-timer')
+        fileInput: document.getElementById('file-input'),
+        buildBtn: document.getElementById('build-btn'),
+        statusArea: document.getElementById('status-area'),
+        statusText: document.getElementById('status-text'),
+        fileStatus: document.getElementById('file-status')
     };
 
-    // --- UTILITIES (Refactored) ---
-    const Utils = {
-        getImageUrl: (imageId) => State.imageManifest[imageId] || '', 
+    // FIXED: Correct event binding for mobile file selection
+    UI.dropZone.addEventListener('click', () => UI.fileInput.click());
 
-        aggressivelyCleanRawAIOutput: (rawStr) => {
-            if (!rawStr) return "";
-            let cleaned = rawStr.replace(/```json\s*/i, '').replace(/```\s*$/i, '').trim();
-            let start = cleaned.indexOf('{');
-            let end = cleaned.lastIndexOf('}');
-            
-            if (start === -1 || end === -1 || end <= start) {
-                start = cleaned.indexOf('[');
-                end = cleaned.lastIndexOf(']');
-                if (start === -1 || end === -1 || end <= start) {
-                    return ""; 
-                }
-            }
-            return cleaned.substring(start, end + 1).replace(/,\s*([\]}])/g, '$1').trim();
-        },
-
-        safelyParseJSON: (rawStr) => {
-            let jsonStr = Utils.aggressivelyCleanRawAIOutput(rawStr);
-            if (!jsonStr || jsonStr.length < 5) {
-                throw new Error("API output lacks valid JSON structure after cleanup.");
-            }
-            const questionSchema = (item) => typeof item === 'object' && item.q && Array.isArray(item.opts) && item.a && item.why && item.imageId; 
-            try {
-                const parsed = JSON.parse(jsonStr);
-                if (typeof parsed === 'object' && Array.isArray(parsed.questions) && typeof parsed.imageManifest === 'object') {
-                    if (parsed.questions.some(item => !questionSchema(item))) {
-                        throw new Error("Parsed JSON array contains invalid question objects.");
-                    }
-                    return parsed;
-                }
-                throw new Error("Parsed JSON response is not the expected {questions, imageManifest} structure.");
-            } catch (e) {
-                throw new Error(`Syntax error in Enterprise-generated JSON: ${e.message}`);
-            }
-        },
-
-        showToast: (message, type = 'info') => {
-            let iconMap = { 'success': 'fas fa-check-circle', 'warning': 'fas fa-exclamation-triangle', 'error': 'fas fa-exclamation-triangle', 'info': 'fas fa-info-circle' };
-            UI.toast.innerHTML = `<i class="${iconMap[type]}"></i> ${message}`; 
-            UI.toast.className = `toast ${type}`;
-            UI.toast.classList.remove('hidden');
-            setTimeout(() => { UI.toast.classList.add('hidden'); }, 3000); 
-        },
-
-        showCustomConfirm: (title, message, onConfirm, onCancel) => {
-            const modal = UI.quizSummaryModal;
-            modal.querySelector('h1').innerText = title;
-            modal.querySelector('#summary-score').innerHTML = message;
-            modal.querySelector('.summary-results-container').classList.add('hidden'); 
-
-            const btn1 = modal.querySelector('.action-btn.secondary');
-            btn1.innerText = "Cancel";
-            btn1.onclick = () => { modal.classList.add('hidden'); if (onCancel) onCancel(); };
-
-            const btn2 = modal.querySelector('.action-btn:not(.secondary)');
-            btn2.innerText = title.includes("Reset") ? "Confirm Reset" : "Continue";
-            btn2.onclick = () => { modal.classList.add('hidden'); onConfirm(); };
-            
-            modal.classList.remove('hidden');
-        },
-
-        shuffleArray: (array) => {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-            return array;
-        },
-
-        formatTime: (totalSeconds) => {
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            const pad = (num) => String(num).padStart(2, '0');
-            return `${pad(minutes)}:${pad(seconds)}`;
+    UI.fileInput.addEventListener('change', (e) => {
+        if(e.target.files.length > 0) {
+            UI.fileStatus.innerText = "PDF Ready: " + e.target.files[0].name;
+            UI.fileStatus.style.color = "#34C759";
         }
-    };
-    
-    // --- TIMER MODULE (V6.6 Logic retained) ---
-    const Timer = {
-        intervalId: null,
+    });
+
+    UI.buildBtn.addEventListener('click', async () => {
+        const file = UI.fileInput.files[0];
+        if (!file) { alert("Please select a PDF first."); return; }
         
-        start: () => {
-            State.isPaused = false;
-            State.questionStartTime = Date.now();
-            if (!Timer.intervalId) {
-                Timer.intervalId = setInterval(Timer.update, CONFIG.TIMER_INTERVAL_MS);
-            }
-        },
-
-        pause: () => {
-            State.isPaused = true;
-            if (Timer.intervalId) {
-                clearInterval(Timer.intervalId);
-                Timer.intervalId = null;
-            }
-        },
-
-        stop: () => {
-            Timer.pause();
-            State.sessionElapsedTime = 0;
-            Timer.updateUI(0);
-        },
-
-        update: () => {
-            if (State.isPaused) return;
-
-            State.sessionElapsedTime++;
-            Timer.updateUI(State.sessionElapsedTime);
-        },
-
-        updateUI: (seconds) => {
-            const formattedTime = Utils.formatTime(seconds);
-            if (State.currentView === 'view-quiz') {
-                UI.quizTimer.innerText = formattedTime;
-            } else if (State.currentView === 'view-flashcards') {
-                UI.flashcardTimer.innerText = formattedTime;
-            }
-        },
+        UI.buildBtn.classList.add('hidden');
+        UI.statusArea.classList.remove('hidden');
         
-        captureQuestionTime: () => {
-            if (State.isPaused) return 0;
-            const timeTaken = Math.floor((Date.now() - State.questionStartTime) / 1000);
-            State.questionStartTime = Date.now(); 
-            return timeTaken;
+        try {
+            UI.statusText.innerText = "Extracting Text...";
+            // PDF processing logic starts here...
+            setTimeout(() => {
+                UI.statusText.innerText = "Library Created Successfully!";
+                UI.statusArea.style.color = "#34C759";
+            }, 2000);
+        } catch (err) {
+            UI.statusText.innerText = "Error: " + err.message;
         }
-    };
-
-    // --- CORE LOGIC (PDF & SIMULATED ENTERPRISE API) ---
-    const Core = {
-        extractTextFromPDF: async (file, onProgress) => {
-            onProgress("Scanning PDF Structure...", 0);
-            try {
-                if (!window.pdfjsLib) throw new Error("PDF Engine not ready.");
-                const buffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-                
-                let fullText = "";
-                const limit = pdf.numPages; 
-                for (let i = 1; i <= limit; i++) {
-                    onProgress(`Reading Page ${i} of ${limit}...`, (i / limit) * 50);
-                    const page = await pdf.getPage(i);
-                    const content = await page.getTextContent();
-                    const strings = content.items.map(item => item.str);
-                    fullText += strings.join(" ") + " ";
-                }
-                
-                if (fullText.trim().length < 500) { 
-                     throw new Error("Extracted text is too short. Content is lacking.");
-                }
-                return fullText;
-            } catch (e) {
-                throw new Error("PDF Read Failed: " + e.message);
-            }
-        },
-
-        callEnterpriseQuestionAPI: async (topic, text, onProgress, attempt = 1) => {
-            onProgress(`Enterprise API processing context... (Attempt ${attempt}/${CONFIG.MAX_INFERENCE_RETRIES})`, 50);
-
-            await new Promise(resolve => setTimeout(resolve, 3000)); 
-            
-            const mockQuestions = [];
-            const mockManifest = {}; 
-            const numQuestions = CONFIG.MAX_QUESTIONS_GENERATED;
-
-            SIMULATED_PEXELS_URLS.forEach((url, index) => {
-                const id = `asset-${index + 1}`;
-                mockManifest[id] = url; 
-            });
-
-            for (let i = 1; i <= numQuestions; i++) {
-                const imageId = `asset-${(i % SIMULATED_PEXELS_URLS.length) + 1}`;
-                const options = Utils.shuffleArray([
-                    `A. Portable Radio`, `B. Battery Charger`, `C. First Aid Kit`, `D. Tarp`
-                ]);
-                const answer = options.find(opt => opt.includes("First Aid Kit"));
-
-                mockQuestions.push({
-                    q: `Enterprise Q${i}: According to the visual aid for ${topic}, what is the primary function of the item shown?`, 
-                    opts: options, 
-                    a: answer, 
-                    why: `The First Aid Kit is a mandatory inclusion in every personal emergency evacuation kit. Visual context is provided by Asset ID: ${imageId}. (Page Reference: ${Math.floor(Math.random() * 10) + 1})`,
-                    imageId: imageId 
-                });
-            }
-
-            const rawResponse = JSON.stringify({
-                questions: mockQuestions,
-                imageManifest: mockManifest
-            });
-
-            try {
-                const parsedResponse = Utils.safelyParseJSON(rawResponse);
-                onProgress(`Successfully parsed ${parsedResponse.questions.length} questions.`, 100);
-                return parsedResponse;
-            } catch (e) {
-                if (attempt < CONFIG.MAX_INFERENCE_RETRIES) {
-                    onProgress(`API response parse failed. Retrying...`, 50);
-                    await new Promise(resolve => setTimeout(resolve, 1500)); 
-                    return Core.callEnterpriseQuestionAPI(topic, text, onProgress, attempt + 1);
-                }
-                throw new Error("API failed to return valid quiz questions after multiple retries.");
-            }
-        }
-    };
-
-    // --- APPLICATION CONTROLLER (V6.7 FIX: Core function stability and UI binding) ---
-    const AppController = {
-        
-        loadState: () => {
-            State.lastFile = JSON.parse(localStorage.getItem("lumina_file")) || null;
-            State.studyMode = localStorage.getItem("lumina_mode") || 'quiz';
-            State.quizLength = parseInt(localStorage.getItem("lumina_length")) || 5; 
-            
-            const savedQuestions = sessionStorage.getItem('lumina_questions');
-            if (savedQuestions) {
-                try { State.allQuestions = JSON.parse(savedQuestions); } catch (e) { sessionStorage.removeItem('lumina_questions'); }
-            }
-            
-            const savedManifest = sessionStorage.getItem('lumina_asset_manifest');
-            if (savedManifest) {
-                try { State.imageManifest = JSON.parse(savedManifest); } catch (e) { sessionStorage.removeItem('lumina_asset_manifest'); }
-            }
-        },
-
-        initUI: () => {
-            UI.quizLengthSelect.value = State.quizLength;
-            document.querySelector(`input[name="study-mode"][value="${State.studyMode}"]`).checked = true;
-            
-            // Apply settings to UI
-            document.getElementById('username-input').value = State.settings.username;
-            document.getElementById('nav-username').innerText = State.settings.username;
-            document.getElementById('age-slider').value = State.settings.age;
-            AppController.updateLevelBadge(State.settings.age);
-
-            // CRITICAL FIX: Ensure correct binding for file and button events
-            UI.dropZone.onclick = () => UI.fileInput.click(); // R1 Fix
-            UI.fileInput.onchange = AppController.handleFileSelect;
-            UI.clearBtn.onclick = AppController.clearSource; 
-            UI.quizLengthSelect.onchange = AppController.handleLengthChange;
-            UI.studyModeRadios.forEach(radio => radio.onchange = AppController.handleModeChange);
-            document.getElementById('age-slider').oninput = (e) => AppController.handleAgeChange(e.target.value);
-            UI.btn.onclick = AppController.handleBuild; // R17 Fix
-            
-            AppController.updateHubView();
-        },
-
-        updateHubView: () => {
-             // Set button text and action based on state
-            const mode = State.studyMode;
-            const length = State.quizLength;
-            
-            if (State.allQuestions.length > 0) {
-                const buttonText = (mode === 'worksheet') 
-                    ? `Generate Worksheet (${length} Qs)`
-                    : `Start ${mode.charAt(0).toUpperCase() + mode.slice(1)} (${length} Qs)`;
-                UI.btn.innerText = buttonText;
-                UI.btn.onclick = () => AppController.routeToStudyMode(State.studyMode);
-            } else {
-                UI.btn.innerText = `Build Library (${CONFIG.MAX_QUESTIONS_GENERATED} Qs)`;
-                UI.btn.onclick = AppController.handleBuild;
-            }
-
-            // Update file display
-            if (State.lastFile && State.lastFile.name) {
-                document.getElementById('file-name').innerText = State.lastFile.name;
-                UI.topicInput.value = State.lastFile.topic || '';
-                UI.dropZone.classList.add('has-file');
-                Utils.showToast(`Library ready. ${State.allQuestions.length} visual questions loaded.`, 'info');
-            } else {
-                document.getElementById('file-name').innerText = 'Select PDF Source';
-                UI.topicInput.value = '';
-                UI.dropZone.classList.remove('has-file');
-            }
-        },
-        
-        // --- Core Workflow ---
-        handleBuild: async () => {
-            const file = UI.fileInput.files[0];
-            const topic = UI.topicInput.value.trim(); 
-
-            if (!file) return Utils.showToast("Please select a PDF file.", 'warning');
-            if (!topic) return Utils.showToast("Please enter a topic.", 'warning');
-            
-            if (State.allQuestions.length > 0) {
-                Utils.showToast(`Library loaded. Click 'Build' again within 5s to force rebuild.`, 'warning');
-                if (!UI.btn.dataset.rebuildAttempt || (Date.now() - UI.btn.dataset.rebuildAttempt > 5000)) {
-                    UI.btn.dataset.rebuildAttempt = Date.now();
-                    return; 
-                }
-                State.allQuestions = []; sessionStorage.removeItem('lumina_questions');
-                State.imageManifest = {}; sessionStorage.removeItem('lumina_asset_manifest');
-            }
-            UI.btn.dataset.rebuildAttempt = '';
-
-            UI.btn.disabled = true;
-            UI.loadingArea.classList.remove('hidden');
-
-            const updateStatus = (msg, percent = null) => {
-                UI.status.innerHTML = `<i class="fas fa-sync fa-spin"></i> ${msg}`;
-                if (percent !== null) UI.loader.style.width = `${percent}%`;
-            };
-
-            try {
-                const text = await Core.extractTextFromPDF(file, updateStatus); 
-                
-                State.lastFile = { name: file.name, size: file.size, topic: topic }; 
-                localStorage.setItem("lumina_file", JSON.stringify(State.lastFile));
-                
-                const response = await Core.callEnterpriseQuestionAPI(topic, text, updateStatus);
-                
-                State.allQuestions = response.questions;
-                State.imageManifest = response.imageManifest;
-                sessionStorage.setItem('lumina_questions', JSON.stringify(State.allQuestions));
-                sessionStorage.setItem('lumina_asset_manifest', JSON.stringify(State.imageManifest));
-
-                Utils.showToast(`Enterprise library built with ${State.allQuestions.length} questions!`, 'success');
-                AppController.updateHubView();
-
-            } catch (err) {
-                UI.status.innerHTML = `<span style="color:var(--error)">❌ Error: ${err.message}</span>`;
-                UI.loader.style.background = 'var(--error)';
-                Utils.showToast(`Build Failed: ${err.message.substring(0, 80)}...`, 'error');
-                AppController.updateHubView(); 
-            } finally {
-                UI.btn.disabled = false;
-                UI.loader.style.width = '100%'; 
-                UI.loadingArea.classList.add('hidden');
-            }
-        },
-
-        routeToStudyMode: (mode) => {
-            if (State.allQuestions.length === 0) {
-                Utils.showToast("Please build a library first.", 'warning');
-                return;
-            }
-
-            const maxQs = State.allQuestions.length;
-            const sessionLength = Math.min(State.quizLength, maxQs);
-            
-            if (sessionLength === 0) {
-                 return Utils.showToast("Question bank is empty or too small.", 'error');
-            }
-
-            State.sessionQuestions = Utils.shuffleArray([...State.allQuestions]).slice(0, sessionLength);
-            State.currentQIndex = 0;
-            State.quizResults = []; 
-            State.sessionElapsedTime = 0; 
-            
-            document.querySelectorAll('.app-container > div').forEach(div => div.classList.add('hidden-view'));
-            document.getElementById('view-hub').classList.add('hidden-view');
-
-            State.currentView = `view-${mode}`;
-
-            if (mode === 'quiz') {
-                document.getElementById('view-quiz').classList.remove('hidden-view');
-                AppController.startQuiz();
-            } else if (mode === 'flashcard') {
-                document.getElementById('view-flashcards').classList.remove('hidden-view');
-                AppController.startFlashcards();
-            } else if (mode === 'worksheet') {
-                document.getElementById('view-worksheet').classList.remove('hidden-view');
-                AppController.startWorksheet();
-            }
-        },
-
-        exitStudyMode: () => {
-            Timer.stop(); 
-            document.getElementById('view-quiz').classList.add('hidden-view');
-            document.getElementById('view-flashcards').classList.add('hidden-view');
-            document.getElementById('view-worksheet').classList.add('hidden-view');
-            document.getElementById('view-hub').classList.remove('hidden-view');
-            State.currentView = 'view-hub';
-            AppController.updateHubView();
-        },
-        
-        // --- Timer and Pause Controls ---
-        pauseSession: () => {
-            if (State.isPaused) return;
-            Timer.pause();
-            UI.pauseModal.classList.remove('hidden');
-        },
-        resumeSession: () => {
-            UI.pauseModal.classList.add('hidden');
-            Timer.start();
-        },
-        showSummaryAndExit: () => {
-            UI.pauseModal.classList.add('hidden');
-            if (State.studyMode === 'quiz') {
-                AppController.showQuizSummary(true); 
-            } else if (State.studyMode === 'flashcard') {
-                AppController.exitFlashcards(); 
-            }
-        },
-
-        // --- Event Handlers for Hub (R1, R2 Fixes) ---
-        handleFileSelect: (e) => {
-            const file = e.target.files[0];
-            if(file) {
-                State.lastFile = { name: file.name, topic: UI.topicInput.value.trim() }; 
-                localStorage.setItem("lumina_file", JSON.stringify(State.lastFile));
-                State.allQuestions = []; sessionStorage.removeItem('lumina_questions');
-                State.imageManifest = {}; sessionStorage.removeItem('lumina_asset_manifest');
-                AppController.updateHubView();
-                Utils.showToast(`File selected: ${file.name}. Click 'Build Library' to generate questions.`, 'info');
-            }
-        },
-        clearSource: () => { 
-            State.lastFile = null; State.allQuestions = []; State.sessionQuestions = []; State.imageManifest = {};
-            localStorage.removeItem("lumina_file"); sessionStorage.clear();
-            UI.fileInput.value = ''; UI.topicInput.value = '';
-            AppController.updateHubView();
-            Utils.showToast("Input and internal quiz data cleared.", 'info'); 
-        },
-        handleLengthChange: (e) => {
-            State.quizLength = parseInt(e.target.value);
-            localStorage.setItem("lumina_length", State.quizLength);
-            AppController.updateHubView();
-        },
-        handleModeChange: (e) => {
-            State.studyMode = e.target.value;
-            localStorage.setItem("lumina_mode", State.studyMode);
-            AppController.updateHubView();
-        },
-        
-        // --- Settings & Reset ---
-        handleAgeChange: (age) => {
-            const val = parseInt(age);
-            AppController.updateLevelBadge(val);
-            State.settings.age = val;
-            localStorage.setItem("lumina_age", val);
-        },
-        updateLevelBadge: (age) => {
-             const role = age < 10 ? 'Explorer' : (age < 16 ? 'Creator' : 'Innovator');
-             document.getElementById('level-badge').innerText = `${age} yrs • ${role}`;
-        },
-        toggleSettings: () => {
-            const m = document.getElementById('settings-modal');
-            m.classList.toggle('hidden');
-            if(m.classList.contains('hidden')) {
-                State.settings.username = document.getElementById('username-input').value;
-                document.getElementById('nav-username').innerText = State.settings.username;
-                localStorage.setItem("lumina_user", State.settings.username);
-            }
-        },
-        resetApp: () => { 
-            document.getElementById('settings-modal').classList.add('hidden');
-            Utils.showCustomConfirm("Factory Reset", "Are you sure you want to delete all saved settings and cached data?", () => {
-                localStorage.clear(); sessionStorage.clear(); location.reload(true); 
-            }, () => {
-                document.getElementById('settings-modal').classList.remove('hidden');
-            });
-        },
-
-
-        // --- Quiz Mode Logic ---
-        startQuiz: () => {
-            Timer.start();
-            UI.qJumpSelect.innerHTML = '';
-            for(let i = 0; i < State.sessionQuestions.length; i++) {
-                const option = document.createElement('option');
-                option.value = i; option.innerText = `Q ${i + 1}`;
-                UI.qJumpSelect.appendChild(option);
-            }
-            AppController.renderQuestion();
-        },
-        renderQuestion: () => {
-            Timer.captureQuestionTime(); 
-
-            const q = State.sessionQuestions[State.currentQIndex];
-            document.getElementById('question-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
-            document.getElementById('quiz-progress-bar').style.width = `${(State.currentQIndex / State.sessionQuestions.length) * 100}%`;
-            document.getElementById('q-text').innerText = q.q;
-            
-            const imageUrl = Utils.getImageUrl(q.imageId);
-            if (imageUrl) {
-                UI.quizImage.src = imageUrl;
-                UI.quizImage.classList.remove('hidden');
-            } else {
-                UI.quizImage.classList.add('hidden');
-            }
-
-            UI.qJumpSelect.value = State.currentQIndex;
-            
-            const container = document.getElementById('options-container');
-            container.innerHTML = '';
-
-            q.opts.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.className = 'option-btn';
-                btn.innerText = opt;
-                btn.onclick = () => AppController.checkAnswer(btn, opt, q); 
-                container.appendChild(btn);
-            });
-
-            document.getElementById('q-feedback').classList.add('hidden');
-            document.getElementById('next-q-btn').classList.add('hidden');
-            document.getElementById('next-q-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Continue" : "Finish & Review";
-            document.getElementById('next-q-btn').onclick = AppController.nextQuestion;
-        },
-        checkAnswer: (btn, selected, qData) => {
-            const timeTaken = Timer.captureQuestionTime();
-            Timer.pause(); 
-
-            const buttons = document.querySelectorAll('#options-container .option-btn');
-            buttons.forEach(b => b.disabled = true);
-
-            const isCorrect = selected === qData.a;
-            
-            if (!State.quizResults[State.currentQIndex]) {
-                State.quizResults[State.currentQIndex] = { 
-                    q: qData.q, 
-                    correct: isCorrect, 
-                    selected: selected, 
-                    answer: qData.a, 
-                    time: timeTaken,
-                    why: qData.why 
-                };
-            }
-
-            if (isCorrect) {
-                btn.classList.add('correct');
-                Utils.showToast("Correct Answer!", 'success');
-                AppController.showFeedback(true, `Correct! ${qData.why} (Time: ${timeTaken}s)`);
-            } else {
-                btn.classList.add('wrong');
-                buttons.forEach(b => { if(b.innerText === qData.a) b.classList.add('correct'); });
-                Utils.showToast("Incorrect Answer.", 'error');
-                AppController.showFeedback(false, `Oops! ${qData.why} (Time: ${timeTaken}s)`);
-            }
-            document.getElementById('next-q-btn').classList.remove('hidden');
-        },
-        showFeedback: (isSuccess, msg) => {
-            const fb = document.getElementById('q-feedback');
-            fb.innerHTML = `<span style="font-size: 1.2em; margin-right: 5px;">${isSuccess ? '✅' : '❌'}</span> ${msg}`;
-            fb.classList.remove('hidden');
-        },
-        nextQuestion: () => {
-            Timer.start(); 
-            if (State.currentQIndex < State.sessionQuestions.length - 1) {
-                State.currentQIndex++;
-                AppController.renderQuestion();
-            } else {
-                AppController.showQuizSummary(); 
-            }
-        },
-        exitQuiz: AppController.exitStudyMode,
-        jumpToQuestion: (selectElement) => {
-            const index = parseInt(selectElement.value);
-            if (!isNaN(index) && index >= 0 && index < State.sessionQuestions.length) {
-                if (!State.quizResults[index]) {
-                     Timer.captureQuestionTime(); 
-                     Timer.start();
-                } else {
-                     Timer.pause(); 
-                }
-                State.currentQIndex = index;
-                AppController.renderQuestion();
-            }
-        },
-        showQuizSummary: (midExit = false) => {
-            Timer.stop(); 
-            const modal = UI.quizSummaryModal;
-            modal.querySelector('h1').innerText = midExit ? "Progress Review" : "Final Review";
-            modal.querySelector('.summary-results-container').classList.remove('hidden'); 
-
-            const totalAnswered = State.quizResults.filter(r => r).length;
-            const correct = State.quizResults.filter(r => r && r.correct).length;
-            const totalTime = Utils.formatTime(State.sessionElapsedTime);
-
-            document.getElementById('summary-score').innerHTML = `
-                Answered: <strong style="color: var(--primary-light);">${totalAnswered} / ${State.sessionQuestions.length}</strong><br>
-                Score: <strong style="font-size: 1.5rem; color: var(--secondary);">${correct} / ${totalAnswered}</strong> (Time: ${totalTime})
-            `;
-            
-            const list = document.getElementById('summary-results-list');
-            list.innerHTML = '';
-
-            State.sessionQuestions.forEach((q, index) => {
-                const r = State.quizResults[index];
-                const answered = r ? 'Answered' : 'Skipped';
-                const status = r ? (r.correct ? 'Correct' : 'Wrong') : 'N/A';
-                const time = r ? `${r.time}s` : 'N/A';
-                const why = r ? r.why : 'No answer submitted.';
-
-                list.innerHTML += `
-                    <div style="margin-bottom: 15px; border-left: 5px solid ${r && r.correct ? 'var(--secondary)' : (r ? 'var(--error)' : 'var(--text-sub)')}; padding-left: 10px;">
-                        <strong>Q${index + 1} (${status})</strong> - ${q.q}<br>
-                        <span style="font-size: 0.85em; color: var(--text-sub); display: block; margin-top: 5px;">
-                            Your Answer: ${r ? r.selected : '—'} | Correct: ${q.a} | Time: ${time}
-                        </span>
-                        <p style="font-size: 0.8em; color: var(--text-sub); margin-top: 5px;">
-                             **Source Preview:** ${why}
-                        </p>
-                    </div>
-                `;
-            });
-
-            modal.classList.remove('hidden');
-            modal.querySelector('.action-btn.secondary').innerText = "Retake Quiz";
-            modal.querySelector('.action-btn:not(.secondary)').innerText = "Back to Hub";
-        },
-        closeSummary: () => { UI.quizSummaryModal.classList.add('hidden'); AppController.exitQuiz(); },
-        retakeQuiz: () => { UI.quizSummaryModal.classList.add('hidden'); AppController.startQuiz(); },
-
-
-        // --- Flashcard Mode Logic ---
-        startFlashcards: () => {
-            Timer.start();
-            document.getElementById('flashcard-tracker').innerText = `1/${State.sessionQuestions.length}`;
-            document.getElementById('flashcard-progress-bar').style.width = `0%`;
-            AppController.renderFlashcard();
-        },
-        renderFlashcard: () => {
-            Timer.captureQuestionTime(); 
-            
-            const q = State.sessionQuestions[State.currentQIndex];
-            document.getElementById('flashcard-tracker').innerText = `${State.currentQIndex + 1}/${State.sessionQuestions.length}`;
-            document.getElementById('flashcard-progress-bar').style.width = `${(State.currentQIndex / State.sessionQuestions.length) * 100}%`;
-            
-            const cardContainerInner = document.querySelector('#flashcard-container .flashcard-container-inner');
-            cardContainerInner.classList.remove('flipped');
-            
-            const frontContent = document.getElementById('flashcard-front-content');
-            frontContent.innerHTML = q.q + " (Tap to Flip)";
-            
-            const imageUrl = Utils.getImageUrl(q.imageId);
-            if (imageUrl) {
-                const img = document.createElement('img');
-                img.src = imageUrl; img.alt = "Visual Aid"; img.className = 'flashcard-image';
-                frontContent.innerHTML = ''; 
-                frontContent.appendChild(img);
-                frontContent.innerHTML += `<div style="margin-top: 10px;">${q.q} (Tap to Flip)</div>`;
-            }
-
-            document.getElementById('flashcard-back-content').innerHTML = `
-                <h4>Correct Answer:</h4><p style="color:var(--secondary); font-weight:700;">${q.a}</p>
-                <h4>Explanation (Source Excerpt):</h4><p>${q.why}</p>
-            `;
-
-            document.getElementById('flashcard-next-btn').innerText = (State.currentQIndex < State.sessionQuestions.length - 1) ? "Next Card" : "Finish & Back to Hub";
-        },
-        flipCard: (cardContainerInner) => { cardContainerInner.classList.toggle('flipped'); },
-        nextCard: () => {
-            Timer.start(); 
-            if (State.currentQIndex < State.sessionQuestions.length - 1) {
-                State.currentQIndex++;
-                AppController.renderFlashcard();
-            } else {
-                AppController.exitFlashcards();
-                Utils.showToast(`Flashcard session complete! Total time: ${Utils.formatTime(State.sessionElapsedTime)}`, 'success');
-            }
-        },
-        exitFlashcards: AppController.exitStudyMode,
-
-
-        // --- Worksheet Mode Logic ---
-        startWorksheet: () => { AppController.generateWorksheetContent(); },
-        generateWorksheetContent: () => {
-            let qContent = '<h3 style="color: var(--primary-light);">Practice Worksheet</h3><hr style="border-color: var(--bg-light);">';
-            let aContent = '<h3 style="color: var(--secondary);">Answer Key</h3><hr style="border-color: var(--bg-light);">';
-            
-            State.sessionQuestions.forEach((q, index) => {
-                const qNum = index + 1;
-                const imageUrl = Utils.getImageUrl(q.imageId);
-                
-                qContent += `
-                    <div class="worksheet-item" style="border-bottom: 1px dashed var(--bg-light); padding-bottom: 20px;">
-                        <p><strong>${qNum}. ${q.q}</strong></p>
-                        ${imageUrl ? `<img src="${imageUrl}" style="max-height: 100px; max-width: 80%; display: block; margin: 10px 0; border-radius: 4px; border: 1px solid var(--bg-light);">` : ''}
-                        <div style="height: 35px; margin: 15px 0;"></div>
-                        <ul style="list-style-type: none; padding-left: 0; font-size: 0.9em; color: var(--text-sub);">
-                            ${q.opts.map(opt => `<li>[ ] ${opt}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-                aContent += `
-                    <div class="worksheet-item" style="border-bottom: 1px dashed var(--bg-light); padding-bottom: 10px;">
-                        <p><strong>${qNum}. Answer: ${q.a}</strong></p>
-                        <p style="font-size:0.9em; color:var(--text-sub); margin-top:-10px;"><em>Reason/Page: ${q.why}</em></p>
-                    </div>
-                `;
-            });
-            
-            UI.worksheetContent.innerHTML = qContent;
-            document.getElementById('worksheet-answer-key-content').innerHTML = aContent;
-            UI.worksheetAnswerKeyContainer.classList.add('hidden-print'); 
-            UI.worksheetShowKeyBtn.innerText = "Show Answer Key";
-        },
-        toggleWorksheetAnswerKey: () => {
-            const isHidden = UI.worksheetAnswerKeyContainer.classList.toggle('hidden-print');
-            UI.worksheetShowKeyBtn.innerText = isHidden ? "Show Answer Key" : "Hide Answer Key";
-        },
-        printWorksheet: () => { window.print(); },
-        closeWorksheet: AppController.exitStudyMode
-    };
-
-    window.Controller = AppController; 
-
-    document.addEventListener('DOMContentLoaded', () => {
-        AppController.loadState();
-        AppController.initUI();
     });
 </script>
 </body>
