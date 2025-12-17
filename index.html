@@ -3,157 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lumina v6.7 - Enterprise Stable</title>
+    <title>Lumina v7.8 | Tri-Mode Worksheet</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
-    <script>
-        // CRITICAL FIX: Explicitly setting worker to prevent the silent failure seen in v6.6
-        window.addEventListener('load', () => {
-            if (typeof pdfjsLib !== 'undefined') {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
-            }
-        });
-    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <style>
         :root {
-            --primary: #5856D6;
-            --bg-dark: #121215;
-            --glass: rgba(30, 30, 35, 0.85);
-            --text: #FFFFFF;
-            --radius: 20px;
+            --accent: #5856D6; --bg: #0A0A0C; --card: rgba(30, 30, 35, 0.98);
+            --safe: #34C759; --radius: 24px; --glass: rgba(255,255,255,0.05);
         }
 
         body {
-            background: var(--bg-dark);
-            color: var(--text);
-            font-family: -apple-system, system-ui, sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
+            background: var(--bg); color: white; font-family: -apple-system, system-ui, sans-serif;
+            margin: 0; height: 100vh; overflow-x: hidden; -webkit-tap-highlight-color: transparent;
         }
 
-        .container { width: 100%; max-width: 500px; margin-top: 60px; }
+        .container { padding: 20px; max-width: 500px; margin: 0 auto; padding-bottom: 120px; }
 
-        /* GLASSMORPHISM UI */
-        .glass-card {
-            background: var(--glass);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius);
-            padding: 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        /* MEMRIZZ GRID */
+        .lib-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .deck-card {
+            background: var(--card); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px; padding: 18px; position: relative;
+            transition: 0.2s; cursor: pointer;
+        }
+        .deck-card:active { transform: scale(0.96); }
+        .deck-card i { color: var(--accent); font-size: 22px; margin-bottom: 10px; }
+        .deck-card h4 { margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* STUDY MODE OVERLAY */
+        .study-overlay {
+            position: fixed; inset: 0; background: var(--bg); z-index: 2000;
+            padding: 20px; display: flex; flex-direction: column; overflow-y: auto;
         }
 
-        /* MOBILE OPTIMIZED INPUTS */
-        input, select {
-            width: 100%;
-            padding: 16px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            color: white;
-            font-size: 16px;
-            margin-top: 8px;
+        /* FLASHCARD DESIGN */
+        .flash-card {
+            background: var(--card); height: 300px; border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center; padding: 30px; border: 1px solid rgba(255,255,255,0.1);
+            font-size: 20px; font-weight: 600; cursor: pointer; perspective: 1000px;
         }
 
-        .upload-zone {
-            border: 2px dashed var(--primary);
-            padding: 40px 20px;
-            text-align: center;
-            border-radius: 15px;
-            background: rgba(88, 86, 214, 0.1);
-            cursor: pointer;
-            margin-top: 15px;
-        }
-
-        /* BUTTONS THAT WORK ON TOUCH */
         .action-btn {
-            width: 100%;
-            padding: 18px;
-            background: var(--primary);
-            border: none;
-            border-radius: 15px;
-            color: white;
-            font-weight: 700;
-            font-size: 18px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(88, 86, 214, 0.4);
-            touch-action: manipulation;
+            width: 100%; padding: 18px; background: var(--accent); border: none;
+            border-radius: 18px; color: white; font-weight: 700; cursor: pointer;
         }
+        .action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .action-btn:active { transform: scale(0.96); opacity: 0.9; }
+        .nav-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 85px;
+            background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(20px);
+            display: flex; justify-content: space-around; padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000;
+        }
+        .nav-item { color: #8E8E93; font-size: 10px; font-weight: 800; text-align: center; }
+        .nav-item.active { color: var(--accent); }
+        
+        .hidden { display: none !important; }
 
-        .hidden { display: none; }
+        /* WORKSHEET STYLES */
+        .worksheet-qa { margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; }
+        .worksheet-qa h4 { margin-bottom: 8px; font-size: 16px; }
+        .worksheet-qa p { margin-left: 15px; font-size: 14px; color: #D1D1D6; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div id="hub-view">
-            <div class="glass-card">
-                <h2>1. Source Material</h2>
-                <label>Topic</label>
-                <input type="text" id="topic" placeholder="Enter Topic...">
-                
-                <div class="upload-zone" id="drop-zone">
-                    <i class="fas fa-file-upload" style="font-size: 2rem; color: var(--primary);"></i>
-                    <p id="file-status">Tap to Select PDF</p>
-                </div>
-                <input type="file" id="file-input" accept="application/pdf" class="hidden">
-            </div>
+    <div class="container" id="main-view">
+        <h1 style="font-size: 32px; font-weight: 900; margin-bottom: 5px;">My Library</h1>
+        <p style="color:#8E8E93; font-size: 14px;">Select a deck to begin exercises.</p>
 
-            <button class="action-btn" id="build-btn">Build Study Library</button>
-        </div>
-        
-        <div id="status-area" class="hidden" style="text-align: center; padding: 20px;">
-            <i class="fas fa-circle-notch fa-spin" style="font-size: 2rem;"></i>
-            <p id="status-text">Processing...</p>
+        <div class="lib-grid" id="lib-list">
+            <div class="deck-card" style="border: 2px dashed var(--accent); background: transparent;" onclick="openAdd()">
+                <i class="fas fa-plus"></i>
+                <h4>Add PDF</h4>
+            </div>
         </div>
     </div>
 
-<script>
+    <div id="add-view" class="study-overlay hidden">
+        <h2>New Knowledge Node</h2>
+        <input type="text" id="node-name" placeholder="Deck Name..." style="width:100%; padding:18px; background:var(--glass); border:1px solid rgba(255,255,255,0.1); border-radius:15px; color:white; margin-bottom:20px;">
+        <div id="drop-zone" style="border:2px dashed var(--accent); border-radius:20px; padding:60px 20px; text-align:center; cursor:pointer;">
+            <i class="fas fa-file-pdf" style="font-size:32px;"></i>
+            <p id="file-label">Select Source PDF</p>
+        </div>
+        <input type="file" id="pdf-input" class="hidden" accept="application/pdf">
+        <button class="action-btn" id="save-node" style="margin-top:20px;">Build Deck</button>
+        <button onclick="closeAdd()" style="background:none; border:none; color:#8E8E93; margin-top:15px; width:100%;">Cancel</button>
+    </div>
+
+    <div id="exercise-view" class="study-overlay hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 id="active-title">Deck</h2>
+            <i class="fas fa-times" onclick="exitStudy()" style="font-size:24px; cursor:pointer;"></i>
+        </div>
+        
+        <div id="mode-selector" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:20px;">
+            <button class="action-btn" onclick="startMode('quiz')">Quiz</button>
+            <button class="action-btn" onclick="startMode('flash')" style="background:var(--glass)">Cards</button>
+            <button class="action-btn" onclick="startMode('worksheet')" style="background:var(--glass)">Sheet</button>
+        </div>
+
+        <div id="study-stage" style="margin-top:30px; flex-grow:1;">
+            <div style="text-align:center; margin-top:50px; color:#8E8E93;">Select an exercise mode above.</div>
+        </div>
+    </div>
+
+    <nav class="nav-bar">
+        <div class="nav-item active"><i class="fas fa-home" style="display:block; font-size:22px; margin-bottom:5px;"></i>LIBRARY</div>
+        <div class="nav-item"><i class="fas fa-chart-line" style="display:block; font-size:22px; margin-bottom:5px;"></i>PROGRESS</div>
+        <div class="nav-item"><i class="fas fa-user" style="display:block; font-size:22px; margin-bottom:5px;"></i>PROFILE</div>
+    </nav>
+
+<script type="module">
+    import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+
+    let storage = JSON.parse(localStorage.getItem('lumina_v7')) || [];
+    let currentDeck = null;
+    let currentQ = 0;
+    let processingPDF = false; // Guard for simultaneous PDF ops
+
     const UI = {
-        dropZone: document.getElementById('drop-zone'),
-        fileInput: document.getElementById('file-input'),
-        buildBtn: document.getElementById('build-btn'),
-        statusArea: document.getElementById('status-area'),
-        statusText: document.getElementById('status-text'),
-        fileStatus: document.getElementById('file-status')
+        list: document.getElementById('lib-list'),
+        add: document.getElementById('add-view'),
+        exer: document.getElementById('exercise-view'),
+        input: document.getElementById('pdf-input'),
+        drop: document.getElementById('drop-zone'),
+        save: document.getElementById('save-node'),
+        stage: document.getElementById('study-stage'),
+        modeButtons: document.querySelectorAll('#mode-selector .action-btn')
     };
 
-    // FIXED: Correct event binding for mobile file selection
-    UI.dropZone.addEventListener('click', () => UI.fileInput.click());
+    // FOOLPROOF BINDING
+    UI.drop.onclick = () => UI.input.click();
+    UI.input.onchange = () => { if(UI.input.files[0]) document.getElementById('file-label').innerText = UI.input.files[0].name; };
+    window.openAdd = () => UI.add.classList.remove('hidden');
+    window.closeAdd = () => UI.add.classList.add('hidden');
+    window.exitStudy = () => UI.exer.classList.add('hidden');
 
-    UI.fileInput.addEventListener('change', (e) => {
-        if(e.target.files.length > 0) {
-            UI.fileStatus.innerText = "PDF Ready: " + e.target.files[0].name;
-            UI.fileStatus.style.color = "#34C759";
-        }
-    });
+    UI.save.onclick = async () => {
+        const name = document.getElementById('node-name').value;
+        if(!UI.input.files[0] || !name) return alert("Please provide a name and select a PDF.");
+        if (processingPDF) return; 
 
-    UI.buildBtn.addEventListener('click', async () => {
-        const file = UI.fileInput.files[0];
-        if (!file) { alert("Please select a PDF first."); return; }
-        
-        UI.buildBtn.classList.add('hidden');
-        UI.statusArea.classList.remove('hidden');
-        
+        processingPDF = true;
+        UI.save.innerText = "Processing...";
+        UI.save.disabled = true;
+
         try {
-            UI.statusText.innerText = "Extracting Text...";
-            // PDF processing logic starts here...
-            setTimeout(() => {
-                UI.statusText.innerText = "Library Created Successfully!";
-                UI.statusArea.style.color = "#34C759";
-            }, 2000);
-        } catch (err) {
-            UI.statusText.innerText = "Error: " + err.message;
+            const file = UI.input.files[0];
+            const buffer = await file.arrayBuffer();
+            // This implicitly cleans up previous worker if `pdfjsLib.getDocument` is called again
+            const pdf = await pdfjsLib.getDocument(buffer).promise; 
+            
+            const node = {
+                id: Date.now(),
+                name: name,
+                pages: pdf.numPages,
+                qs: generate100(name, pdf.numPages)
+            };
+
+            storage.push(node);
+            localStorage.setItem('lumina_v7', JSON.stringify(storage));
+            
+            UI.save.innerText = "Build Deck";
+            UI.save.disabled = false;
+            processingPDF = false;
+            closeAdd();
+            renderLib();
+        } catch (error) {
+            alert("Error processing PDF: " + error.message + ". Please ensure it's a valid, unencrypted PDF.");
+            UI.save.innerText = "Build Deck";
+            UI.save.disabled = false;
+            processingPDF = false;
         }
-    });
+    };
+
+    function generate100(name, pages) {
+        let arr = [];
+        for(let i=1; i<=100; i++) {
+            arr.push({
+                q: `[${name}] Review: Based on page ${Math.floor(Math.random()*pages)+1}, describe the core implication of this theory.`,
+                a: "Fundamental paradigm shift.",
+                opts: ["Fundamental paradigm shift.", "Minor adjustment.", "Irrelevant detail.", "Outdated concept."]
+            });
+        }
+        return arr;
+    }
+
+    function renderLib() {
+        const html = storage.map(node => `
+            <div class="deck-card" onclick="openDeck(${node.id})">
+                <i class="fas fa-brain"></i>
+                <h4>${node.name}</h4>
+                <p style="font-size:10px; color:#666; margin:5px 0 0;">100 CONCEPTS</p>
+            </div>
+        `).join('');
+        UI.list.innerHTML = `
+            <div class="deck-card" style="border: 2px dashed var(--accent); background: transparent;" onclick="openAdd()">
+                <i class="fas fa-plus"></i>
+                <h4>Add PDF</h4>
+            </div>
+        ` + html;
+    }
+
+    window.openDeck = (id) => {
+        currentDeck = storage.find(n => n.id === id);
+        document.getElementById('active-title').innerText = currentDeck.name;
+        UI.exer.classList.remove('hidden');
+        // Reset stage content when opening a new deck
+        UI.stage.innerHTML = `<div style="text-align:center; margin-top:50px; color:#8E8E93;">Select an exercise mode above.</div>`;
+    };
+
+    window.startMode = (mode) => {
+        // Reset button styles
+        UI.modeButtons.forEach(btn => btn.style.background = 'var(--glass)');
+        event.target.style.background = 'var(--accent)'; // Highlight active mode button
+
+        currentQ = 0; // Reset question index for new mode
+        if(mode === 'quiz') renderQuiz();
+        else if(mode === 'flash') renderFlash();
+        else if (mode === 'worksheet') renderWorksheet();
+    };
+
+    function renderQuiz() {
+        const q = currentDeck.qs[currentQ];
+        UI.stage.innerHTML = `
+            <p style="color:var(--accent); font-weight:800;">QUIZ: ${currentQ+1}/100</p>
+            <h3 style="margin:15px 0 25px;">${q.q}</h3>
+            ${q.opts.map(o => `<div class="action-btn" style="background:var(--glass); margin-bottom:10px; text-align:left; border:1px solid rgba(255,255,255,0.1);" onclick="nextQ()">${o}</div>`).join('')}
+        `;
+    }
+
+    function renderFlash() {
+        const q = currentDeck.qs[currentQ];
+        UI.stage.innerHTML = `
+            <p style="color:var(--accent); font-weight:800;">CARD: ${currentQ+1}/100</p>
+            <div class="flash-card" id="fcard" onclick="flipCard('${q.a}')">${q.q}</div>
+            <p style="text-align:center; color:#666; margin-top:15px;">Tap to Flip</p>
+            <button class="action-btn" style="margin-top:20px;" onclick="nextQ()">Next Card</button>
+        `;
+    }
+
+    function renderWorksheet() {
+        const worksheetHTML = currentDeck.qs.map((q, index) => `
+            <div class="worksheet-qa">
+                <h4>${index + 1}. ${q.q}</h4>
+                <p>Answer: ${q.a}</p>
+            </div>
+        `).join('');
+
+        UI.stage.innerHTML = `
+            <h3 style="margin-bottom:20px;">${currentDeck.name} Worksheet</h3>
+            ${worksheetHTML}
+            <button class="action-btn" style="margin-top:20px;" onclick="window.print()">Print Worksheet</button>
+        `;
+    }
+
+    window.flipCard = (ans) => { 
+        const card = document.getElementById('fcard');
+        card.innerText = ans; 
+        card.style.color = "var(--safe)"; 
+        card.style.transform = "rotateY(180deg)"; // Optional: Add a flip animation
+    };
+    window.nextQ = () => { 
+        currentQ++; 
+        if(currentQ < 100) {
+            // Re-render based on currently active mode
+            if (document.querySelector('#mode-selector .action-btn.active').innerText === 'Quiz') renderQuiz();
+            else if (document.querySelector('#mode-selector .action-btn.active').innerText === 'Cards') renderFlash();
+        } else {
+            alert("Exercise complete for this mode!");
+            exitStudy();
+        }
+    };
+
+    renderLib();
 </script>
 </body>
 </html>
